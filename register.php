@@ -2,69 +2,80 @@
 session_start();
 include 'db.php';
 
-if (isset($_POST['register'])) {
-    $name = $conn->real_escape_string($_POST['name']);
-    $email = $conn->real_escape_string($_POST['email']);
-    $phone = $conn->real_escape_string($_POST['phone']);
-    $pass = password_hash($_POST['password'], PASSWORD_DEFAULT);
-    
-    // Generate a random 6-digit OTP
-    $otp = rand(100000, 999999);
+$error = "";
+$success = "";
 
-    // Insert user as inactive (is_active = 0)
-    $sql = "INSERT INTO users (name, email, phone, password, otp_code, is_active) 
-            VALUES ('$name', '$email', '$phone', '$pass', '$otp', 0)";
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    $full_name = mysqli_real_escape_string($conn, $_POST['full_name']);
+    $email = mysqli_real_escape_string($conn, $_POST['email']);
+    $password = $_POST['password'];
 
-    if ($conn->query($sql)) {
-        $_SESSION['temp_email'] = $email;
-        // In a real system, you would use mail() or an SMS API here.
-        // For now, we will redirect to the verify page.
-        header("Location: verify_otp.php");
+    $check = $conn->query("SELECT email FROM users WHERE email='$email'");
+    if ($check->num_rows > 0) {
+        $error = "Email already exists.";
+    } else {
+        $hashed = password_hash($password, PASSWORD_BCRYPT);
+        $sql = "INSERT INTO users (full_name, email, password) VALUES ('$full_name', '$email', '$hashed')";
+        if ($conn->query($sql)) {
+            $success = "Account created! You can login now.";
+        } else {
+            $error = "Error creating account.";
+        }
     }
 }
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Join Royal Finance</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register | Royal Matrix</title>
     <style>
-        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #7c3aed 0%, #db2777 100%); display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-        .reg-card { background: white; padding: 40px; border-radius: 30px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); width: 100%; max-width: 400px; }
-        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 12px; box-sizing: border-box; }
-        .checkbox-group { display: flex; align-items: flex-start; gap: 10px; font-size: 0.85em; margin: 15px 0; color: #64748b; }
-        .robot-check { background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 15px; margin-bottom: 20px; }
-        .btn-reg { background: #7c3aed; color: white; border: none; width: 100%; padding: 15px; border-radius: 15px; font-weight: bold; cursor: pointer; transition: 0.3s; }
-        .btn-reg:hover { transform: scale(1.02); background: #6d28d9; }
+        /* Shared CSS from Login Page */
+        :root { --royal-purple: #7c3aed; --aqua-accent: #06b6d4; --neon-gold: #fbbf24; }
+        body {
+            font-family: 'Inter', sans-serif;
+            height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; color: white;
+            background: linear-gradient(-45deg, #020617, #0a0f1e, #1e1b4b, #0c4a6e);
+            background-size: 400% 400%; animation: gradientShift 10s ease infinite; overflow: hidden;
+        }
+        @keyframes gradientShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        .box { width: 100%; max-width: 380px; padding: 40px; background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 24px; text-align: center; }
+        h2 { font-size: 28px; margin-bottom: 8px; }
+        p { color: #cbd5e1; margin-bottom: 30px; font-size: 14px; }
+        .input-group { text-align: left; margin-bottom: 15px; }
+        label { display: block; font-size: 11px; margin-bottom: 5px; color: #94a3b8; font-weight: 600; text-transform: uppercase; }
+        input { width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; color: white; outline: none; box-sizing: border-box; }
+        .btn { width: 100%; padding: 16px; background: linear-gradient(135deg, var(--royal-purple), var(--aqua-accent)); border: none; border-radius: 12px; color: white; font-weight: 700; cursor: pointer; margin-top: 15px; }
+        .error { color: #fca5a5; font-size: 13px; margin-bottom: 10px; }
+        .success { color: #86efac; font-size: 13px; margin-bottom: 10px; }
+        .link { margin-top: 25px; font-size: 14px; color: #94a3b8; }
+        .link a { color: var(--neon-gold); text-decoration: none; font-weight: 700; }
     </style>
 </head>
 <body>
-
-<div class="reg-card">
-    <h2 style="text-align:center; margin-bottom:10px;">Create Account</h2>
-    <p style="text-align:center; color:#64748b; font-size:0.9em; margin-bottom:25px;">Secure your future with Royal Finance</p>
-    
-    <form method="POST">
-        <input type="text" name="name" placeholder="Full Name" required>
-        <input type="email" name="email" placeholder="Email Address" required>
-        <input type="text" name="phone" placeholder="Phone Number" required>
-        <input type="password" name="password" placeholder="Create Password" required>
-
-        <div class="robot-check">
-            <input type="checkbox" style="width:20px; margin:0;" required>
-            <span style="font-weight:600; font-size:0.9em;">I am not a robot</span>
-            <i class="fas fa-redo-alt" style="margin-left:auto; color:#cbd5e1;"></i>
-        </div>
-
-        <div class="checkbox-group">
-            <input type="checkbox" style="width:20px; margin:0;" required>
-            <span>I agree to the <a href="#" style="color:#7c3aed;">Terms of Service</a> and Privacy Policy of Royal Finance.</span>
-        </div>
-
-        <button type="submit" name="register" class="btn-reg">Get Verification Code</button>
-    </form>
-</div>
-
+    <div class="box">
+        <h2>Join Us</h2>
+        <p>Create your finance account</p>
+        <?php if($error): ?><div class="error"><?php echo $error; ?></div><?php endif; ?>
+        <?php if($success): ?><div class="success"><?php echo $success; ?></div><?php endif; ?>
+        <form method="POST">
+            <div class="input-group">
+                <label>Full Name</label>
+                <input type="text" name="full_name" required placeholder="Your Name">
+            </div>
+            <div class="input-group">
+                <label>Email</label>
+                <input type="email" name="email" required placeholder="Email">
+            </div>
+            <div class="input-group">
+                <label>Password</label>
+                <input type="password" name="password" required placeholder="Create Password">
+            </div>
+            <button type="submit" class="btn">SIGN UP</button>
+        </form>
+        <div class="link">Have an account? <a href="login.php">Log In</a></div>
+    </div>
 </body>
 </html>
