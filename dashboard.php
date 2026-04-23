@@ -464,6 +464,152 @@ body {
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
+/* MODAL */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    animation: fadeIn 0.3s ease;
+}
+
+.modal-overlay.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal {
+    background: var(--bg-dark);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    max-width: 500px;
+    width: 90%;
+    animation: slideUp 0.3s ease;
+}
+
+.modal-header {
+    margin-bottom: 24px;
+}
+
+.modal-title {
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.modal-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: none;
+    border: none;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    font-size: 24px;
+    transition: color 0.3s ease;
+}
+
+.modal-close:hover {
+    color: var(--text-primary);
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+
+.form-input,
+.form-select,
+.form-textarea {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.form-textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 32px;
+}
+
+.modal-actions button {
+    flex: 1;
+    padding: 12px;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.modal-actions .btn-primary {
+    background: var(--primary);
+    color: white;
+}
+
+.modal-actions .btn-primary:hover {
+    background: var(--primary-dark);
+}
+
+.modal-actions .btn-secondary {
+    background: var(--surface);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+}
+
+.modal-actions .btn-secondary:hover {
+    background: rgba(59, 130, 246, 0.1);
+}
+
+/* TOAST NOTIFICATION */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--success);
+    color: white;
+    padding: 16px 24px;
+    border-radius: 8px;
+    animation: slideUp 0.3s ease;
+    z-index: 2000;
+}
+
+.toast.error {
+    background: var(--danger);
+}
+
 /* RESPONSIVE */
 @media (max-width: 1200px) {
     .charts-grid {
@@ -527,18 +673,35 @@ body {
     .header-title {
         font-size: 24px;
     }
+
+    .modal {
+        padding: 24px;
+    }
 }
 
 /* ANIMATIONS */
 @keyframes fadeIn {
     from {
         opacity: 0;
-        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
     }
     to {
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+.stat-card, .card {
+    animation: fadeIn 0.4s ease forwards;
 }
 
 /* SCROLLBAR */
@@ -606,7 +769,7 @@ body {
             </div>
             <div class="header-actions">
                 <button class="btn btn-secondary">Export</button>
-                <button class="btn btn-primary">+ Add Transaction</button>
+                <button class="btn btn-primary" onclick="openAddTransactionModal()">+ Add Transaction</button>
             </div>
         </div>
 
@@ -736,8 +899,110 @@ body {
     </div>
 </div>
 
+<!-- ADD TRANSACTION MODAL -->
+<div class="modal-overlay" id="transactionModal">
+    <div class="modal">
+        <button class="modal-close" onclick="closeAddTransactionModal()">✕</button>
+        
+        <div class="modal-header">
+            <h2 class="modal-title">Add Transaction</h2>
+        </div>
+
+        <form id="transactionForm">
+            <div class="form-group">
+                <label class="form-label">Category</label>
+                <select name="category" class="form-select" required>
+                    <option value="">Select a category</option>
+                    <option value="Food">Food & Dining</option>
+                    <option value="Transport">Transport</option>
+                    <option value="Utilities">Utilities</option>
+                    <option value="Entertainment">Entertainment</option>
+                    <option value="Shopping">Shopping</option>
+                    <option value="Health">Health</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Amount (KES)</label>
+                <input type="number" name="amount" class="form-input" placeholder="Enter amount" step="0.01" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Description</label>
+                <textarea name="description" class="form-textarea" placeholder="Add a note (optional)"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Date</label>
+                <input type="date" name="created_at" class="form-input" value="<?php echo date('Y-m-d'); ?>" required>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeAddTransactionModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Add Transaction</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
-/* DATA */
+/* MODAL FUNCTIONS */
+function openAddTransactionModal() {
+    document.getElementById('transactionModal').classList.add('active');
+}
+
+function closeAddTransactionModal() {
+    document.getElementById('transactionModal').classList.remove('active');
+}
+
+/* Close modal when clicking outside */
+document.getElementById('transactionModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeAddTransactionModal();
+    }
+});
+
+/* FORM SUBMISSION */
+document.getElementById('transactionForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    
+    fetch('add_transaction.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('Transaction added successfully!');
+            closeAddTransactionModal();
+            document.getElementById('transactionForm').reset();
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showToast('Error: ' + data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showToast('An error occurred', 'error');
+    });
+});
+
+/* TOAST NOTIFICATION */
+function showToast(message, type = 'success') {
+    const toast = document.createElement('div');
+    toast.className = 'toast ' + type;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+
+/* CHARTS */
 let labels = <?php echo json_encode($catLabels); ?>;
 let dataVals = <?php echo json_encode($catData); ?>;
 let colors = <?php echo json_encode($catColors); ?>;
