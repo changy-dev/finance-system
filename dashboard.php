@@ -29,13 +29,14 @@ $catLabels = [];
 $catData = [];
 $catColors = [];
 
-$colors = ['#f43f5e','#8b5cf6','#3b82f6','#22c55e','#f59e0b','#06b6d4'];
+$colors = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#06b6d4'];
 
 $q = $conn->query("
 SELECT category, SUM(amount) total 
 FROM transactions 
 WHERE user_id=$user_id AND type='expense'
 GROUP BY category
+ORDER BY total DESC
 ");
 
 $totalExpense = 0;
@@ -48,190 +49,755 @@ while($r = $q->fetch_assoc()){
     $totalExpense += $r['total'];
     $i++;
 }
+
+/* Get recent transactions */
+$recent = $conn->query("
+SELECT * FROM transactions 
+WHERE user_id=$user_id
+ORDER BY created_at DESC
+LIMIT 5
+");
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finance Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.css">
 
 <style>
-body{
-margin:0;
-font-family:Inter;
-background:#020617;
-color:#e2e8f0;
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
-.app{display:flex;}
-.sidebar{width:240px;padding:20px;background:#020617;}
-.sidebar a{
-display:block;padding:12px;border-radius:10px;
-color:#94a3b8;text-decoration:none;
-}
-.sidebar a.active{
-background:linear-gradient(135deg,#6366f1,#3b82f6);
-color:white;
-}
-
-.main{flex:1;padding:40px;}
-
-.card{
-background:#0f172a;
-padding:20px;
-border-radius:16px;
-margin-bottom:20px;
+:root {
+    --primary: #3b82f6;
+    --primary-dark: #1e40af;
+    --secondary: #8b5cf6;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --bg-dark: #0f172a;
+    --bg-darker: #020617;
+    --surface: #1e293b;
+    --border: #334155;
+    --text-primary: #f1f5f9;
+    --text-secondary: #cbd5e1;
+    --text-tertiary: #94a3b8;
 }
 
-.grid{display:grid;gap:20px;}
-@media(min-width:992px){
-.grid-2{grid-template-columns:2fr 1fr;}
-.grid-3{grid-template-columns:repeat(3,1fr);}
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background: linear-gradient(135deg, var(--bg-darker) 0%, #0a0e27 100%);
+    color: var(--text-primary);
+    line-height: 1.6;
 }
 
-.center{
-position:absolute;
-top:50%;
-left:50%;
-transform:translate(-50%,-50%);
-text-align:center;
+.layout {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    min-height: 100vh;
 }
 
-.tx{
-padding:10px;
-border-bottom:1px solid #1e293b;
-cursor:pointer;
+/* SIDEBAR */
+.sidebar {
+    background: var(--bg-dark);
+    border-right: 1px solid var(--border);
+    padding: 24px 0;
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 260px;
+    height: 100vh;
+    overflow-y: auto;
+}
+
+.sidebar-header {
+    padding: 0 20px 30px;
+    border-bottom: 1px solid var(--border);
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 24px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.nav {
+    margin-top: 20px;
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    color: var(--text-tertiary);
+    text-decoration: none;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+}
+
+.nav-item:hover {
+    color: var(--text-secondary);
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.nav-item.active {
+    color: var(--primary);
+    background: rgba(59, 130, 246, 0.15);
+    border-left-color: var(--primary);
+}
+
+.nav-item svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* MAIN */
+.main {
+    grid-column: 2;
+    padding: 40px;
+}
+
+/* HEADER */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 40px;
+}
+
+.header-title {
+    font-size: 32px;
+    font-weight: 700;
+}
+
+.header-subtitle {
+    font-size: 14px;
+    color: var(--text-tertiary);
+    margin-top: 4px;
+}
+
+.header-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.btn {
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: none;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: var(--primary-dark);
+    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
+}
+
+.btn-secondary {
+    background: var(--surface);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: var(--primary);
+}
+
+/* STATS */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 20px;
+    margin-bottom: 40px;
+}
+
+.stat-card {
+    background: var(--bg-dark);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+    border-color: var(--primary);
+    box-shadow: 0 8px 24px rgba(59, 130, 246, 0.1);
+    transform: translateY(-2px);
+}
+
+.stat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+}
+
+.stat-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.stat-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--primary);
+}
+
+.stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.stat-change {
+    font-size: 12px;
+    color: var(--text-tertiary);
+}
+
+.stat-change.positive {
+    color: var(--success);
+}
+
+.stat-change.negative {
+    color: var(--danger);
+}
+
+/* CHARTS */
+.charts-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 20px;
+    margin-bottom: 40px;
+}
+
+.card {
+    background: var(--bg-dark);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.card-title {
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.card-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.chart-container {
+    position: relative;
+    height: 300px;
+}
+
+.doughnut-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 300px;
+}
+
+.doughnut-center {
+    position: absolute;
+    text-align: center;
+    pointer-events: none;
+}
+
+.doughnut-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+}
+
+.doughnut-value {
+    font-size: 24px;
+    font-weight: 700;
+    margin-top: 4px;
+}
+
+/* TRANSACTIONS */
+.transactions-card {
+    grid-column: 1 / -1;
+}
+
+.tx-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.tx-table th {
+    text-align: left;
+    padding: 12px 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+}
+
+.tx-table td {
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.tx-category {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 500;
+}
+
+.tx-badge {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.tx-amount {
+    font-weight: 600;
+    color: var(--danger);
+}
+
+.tx-date {
+    font-size: 12px;
+    color: var(--text-tertiary);
+}
+
+.tx-list-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-tertiary);
+}
+
+/* RESPONSIVE */
+@media (max-width: 1200px) {
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .layout {
+        grid-template-columns: 1fr;
+    }
+
+    .sidebar {
+        width: 100%;
+        height: auto;
+        position: relative;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        padding: 16px 20px;
+    }
+
+    .sidebar-header {
+        padding: 0;
+        border: none;
+    }
+
+    .nav {
+        display: flex;
+        gap: 8px;
+        margin-top: 0;
+        overflow-x: auto;
+        padding-bottom: 8px;
+    }
+
+    .nav-item {
+        white-space: nowrap;
+        padding: 8px 12px;
+        border-left: none;
+        border-bottom: 2px solid transparent;
+    }
+
+    .nav-item.active {
+        border-left: none;
+        border-bottom-color: var(--primary);
+    }
+
+    .main {
+        padding: 20px;
+    }
+
+    .header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .header-title {
+        font-size: 24px;
+    }
+}
+
+/* ANIMATIONS */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.stat-card, .card {
+    animation: fadeIn 0.4s ease forwards;
+}
+
+.stat-card:nth-child(1) { animation-delay: 0.1s; }
+.stat-card:nth-child(2) { animation-delay: 0.2s; }
+.stat-card:nth-child(3) { animation-delay: 0.3s; }
+
+/* SCROLLBAR */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-dark);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-tertiary);
 }
 </style>
 </head>
 
 <body>
 
-<div class="app">
+<div class="layout">
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                💰 Finance
+            </div>
+        </div>
+        
+        <nav class="nav">
+            <a href="#" class="nav-item active">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-3m0 0l7-4 7 4M5 9v10a1 1 0 001 1h12a1 1 0 001-1V9m-9 16l-7-4m0 0l-2-3m2 3v10a1 1 0 001 1h12a1 1 0 001-1v-10m0 0l2-3" />
+                </svg>
+                Dashboard
+            </a>
+            <a href="transactions.php" class="nav-item">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Transactions
+            </a>
+            <a href="settings.php" class="nav-item">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Settings
+            </a>
+        </nav>
+    </div>
 
-<div class="sidebar">
-<h2>Finance</h2>
-<a href="#" class="active">Dashboard</a>
-<a href="transactions.php">Transactions</a>
-<a href="settings.php">Settings</a>
-</div>
+    <!-- MAIN CONTENT -->
+    <div class="main">
+        <!-- HEADER -->
+        <div class="header">
+            <div>
+                <h1 class="header-title">Welcome Back</h1>
+                <p class="header-subtitle">Here's your financial overview</p>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-secondary">Export</button>
+                <button class="btn btn-primary">+ Add Transaction</button>
+            </div>
+        </div>
 
-<div class="main">
+        <!-- STATS -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-label">Total Expenses</span>
+                    <div class="stat-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                        </svg>
+                    </div>
+                </div>
+                <div class="stat-value">KES <?php echo number_format($totalExpense); ?></div>
+                <div class="stat-change negative">↑ 12.5% from last month</div>
+            </div>
 
-<h2>Analytics</h2>
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-label">Categories</span>
+                    <div class="stat-icon" style="background: rgba(16, 185, 129, 0.15); color: var(--success);">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 11l3 3L22 4" />
+                        </svg>
+                    </div>
+                </div>
+                <div class="stat-value"><?php echo count($catLabels); ?></div>
+                <div class="stat-change">Active spending categories</div>
+            </div>
 
-<!-- SUMMARY -->
-<div class="grid grid-3">
-<div class="card">Total: KES <?php echo number_format($totalExpense); ?></div>
-<div class="card">Categories: <?php echo count($catLabels); ?></div>
-<div class="card">Avg/Month: KES <?php echo number_format($totalExpense/12); ?></div>
-</div>
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-label">Monthly Average</span>
+                    <div class="stat-icon" style="background: rgba(245, 158, 11, 0.15); color: var(--warning);">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="12 1 v22 M4.22 4.22l15.56 15.56 M4.22 19.78L19.78 4.22" />
+                        </svg>
+                    </div>
+                </div>
+                <div class="stat-value">KES <?php echo number_format($totalExpense/12); ?></div>
+                <div class="stat-change positive">↓ 5% optimized</div>
+            </div>
+        </div>
 
-<!-- CHARTS -->
-<div class="grid grid-2">
+        <!-- CHARTS -->
+        <div class="charts-grid">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Spending Trend</h3>
+                    <div class="card-actions">
+                        <select style="background: var(--surface); border: 1px solid var(--border); color: var(--text-primary); padding: 6px 12px; border-radius: 6px; font-size: 12px;">
+                            <option>Last 12 Months</option>
+                            <option>Last 6 Months</option>
+                            <option>Last 3 Months</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="lineChart"></canvas>
+                </div>
+            </div>
 
-<div class="card">
-<h3>Trend</h3>
-<canvas id="lineChart"></canvas>
-</div>
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Category Breakdown</h3>
+                </div>
+                <div class="doughnut-wrapper">
+                    <canvas id="pieChart" style="max-width: 200px;"></canvas>
+                    <div class="doughnut-center">
+                        <div class="doughnut-label">Total</div>
+                        <div class="doughnut-value" id="centerValue">KES 0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-<div class="card" style="position:relative;">
-<h3>Breakdown</h3>
+        <!-- TRANSACTIONS -->
+        <div class="card transactions-card">
+            <div class="card-header">
+                <h3 class="card-title">Recent Transactions</h3>
+                <a href="transactions.php" style="color: var(--primary); text-decoration: none; font-size: 12px; font-weight: 600;">View All →</a>
+            </div>
 
-<div style="width:250px;margin:auto;position:relative;">
-<canvas id="pieChart"></canvas>
+            <table class="tx-table">
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th>Amount</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody id="txList">
+                    <?php if($recent->num_rows > 0): ?>
+                        <?php while($tx = $recent->fetch_assoc()): ?>
+                            <tr>
+                                <td>
+                                    <div class="tx-category">
+                                        <div class="tx-badge" style="background: <?php echo $catColors[array_search($tx['category'], $catLabels)] ?? '#3b82f6'; ?>"></div>
+                                        <?php echo ucfirst($tx['category']); ?>
+                                    </div>
+                                </td>
+                                <td><span class="tx-amount">-KES <?php echo number_format($tx['amount']); ?></span></td>
+                                <td><span class="tx-date"><?php echo date('M d, Y', strtotime($tx['created_at'])); ?></span></td>
+                            </tr>
+                        <?php endwhile; ?>
+                    <?php else: ?>
+                        <tr>
+                            <td colspan="3" class="tx-list-empty">No transactions yet. Start by adding one!</td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
 
-<div id="center" class="center">
-<div id="centerLabel">Total</div>
-<div id="centerValue">KES 0</div>
-</div>
-
-</div>
-</div>
-
-</div>
-
-<!-- TRANSACTIONS -->
-<div class="card">
-<h3>Filtered Transactions</h3>
-<div id="txList">Click a category to filter</div>
-</div>
-
-</div>
+    </div>
 </div>
 
 <script>
-
 /* DATA */
 let labels = <?php echo json_encode($catLabels); ?>;
 let dataVals = <?php echo json_encode($catData); ?>;
+let colors = <?php echo json_encode($catColors); ?>;
 let total = dataVals.reduce((a,b)=>a+b,0);
 
-document.getElementById('centerValue').innerText =
-"KES " + total.toLocaleString();
+document.getElementById('centerValue').innerText = "KES " + total.toLocaleString();
 
-/* PIE */
-let pie = new Chart(document.getElementById('pieChart'),{
-type:'doughnut',
-data:{
-labels:labels,
-datasets:[{
-data:dataVals,
-backgroundColor: <?php echo json_encode($catColors); ?>
-}]
-},
-options:{
-cutout:'70%',
-onHover:(e,el)=>{
-if(el.length){
-let i = el[0].index;
-updateCenter(labels[i], dataVals[i]);
-}else{
-updateCenter('Total', total);
-}
-},
-onClick:(e,el)=>{
-if(el.length){
-let i = el[0].index;
-filterTransactions(labels[i]);
-}
-}
-}
+/* PIE CHART */
+const pieCtx = document.getElementById('pieChart').getContext('2d');
+let pie = new Chart(pieCtx, {
+    type: 'doughnut',
+    data: {
+        labels: labels,
+        datasets: [{
+            data: dataVals,
+            backgroundColor: colors,
+            borderColor: '#0f172a',
+            borderWidth: 2,
+            hoverOffset: 8
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: false
+            },
+            tooltip: {
+                backgroundColor: '#1e293b',
+                padding: 12,
+                titleColor: '#f1f5f9',
+                bodyColor: '#cbd5e1',
+                borderColor: '#334155',
+                borderWidth: 1,
+                displayColors: true,
+                padding: 12
+            }
+        },
+        onHover: (e, el) => {
+            if(el.length) {
+                let i = el[0].index;
+                document.querySelector('.doughnut-label').innerText = labels[i];
+                document.getElementById('centerValue').innerText = "KES " + dataVals[i].toLocaleString();
+            }
+        }
+    }
 });
 
-/* LINE */
-new Chart(document.getElementById('lineChart'),{
-type:'line',
-data:{
-labels: <?php echo json_encode($months); ?>,
-datasets:[{
-data: <?php echo json_encode($monthly); ?>,
-borderColor:'#60a5fa',
-backgroundColor:'rgba(96,165,250,0.2)',
-fill:true,
-tension:0.4
-}]
-}
+/* LINE CHART */
+const lineCtx = document.getElementById('lineChart').getContext('2d');
+new Chart(lineCtx, {
+    type: 'line',
+    data: {
+        labels: <?php echo json_encode($months); ?>,
+        datasets: [{
+            data: <?php echo json_encode($monthly); ?>,
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            borderWidth: 3,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            pointBackgroundColor: '#3b82f6',
+            pointBorderColor: '#0f172a',
+            pointBorderWidth: 2
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: false
+            },
+            tooltip: {
+                backgroundColor: '#1e293b',
+                padding: 12,
+                titleColor: '#f1f5f9',
+                bodyColor: '#cbd5e1',
+                borderColor: '#334155',
+                borderWidth: 1,
+                displayColors: false
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                grid: {
+                    color: 'rgba(52, 65, 85, 0.5)',
+                    drawBorder: false
+                },
+                ticks: {
+                    color: '#94a3b8',
+                    font: { size: 12 }
+                }
+            },
+            x: {
+                grid: {
+                    display: false,
+                    drawBorder: false
+                },
+                ticks: {
+                    color: '#94a3b8',
+                    font: { size: 12 }
+                }
+            }
+        }
+    }
 });
-
-/* CENTER UPDATE */
-function updateCenter(label,val){
-document.getElementById('centerLabel').innerText = label;
-document.getElementById('centerValue').innerText =
-"KES " + val.toLocaleString();
-}
-
-/* FILTER */
-function filterTransactions(category){
-
-fetch('filter.php?category='+category)
-.then(res=>res.text())
-.then(html=>{
-document.getElementById('txList').innerHTML = html;
-});
-
-}
 </script>
 
 </body>
