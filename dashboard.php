@@ -16,12 +16,14 @@ $monthly = array_fill(0,12,0);
 $res = $conn->query("
 SELECT MONTH(created_at) m, SUM(amount) total 
 FROM transactions 
-WHERE user_id=$user_id AND type='expense'
+WHERE user_id='$user_id' AND type='expense'
 GROUP BY m
 ");
 
-while($row = $res->fetch_assoc()){
-    $monthly[$row['m']-1] = (int)$row['total'];
+if ($res && $res->num_rows > 0) {
+    while($row = $res->fetch_assoc()){
+        $monthly[$row['m']-1] = (int)$row['total'];
+    }
 }
 
 /* CATEGORY */
@@ -34,29 +36,35 @@ $colors = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#06b6d4'];
 $q = $conn->query("
 SELECT category, SUM(amount) total 
 FROM transactions 
-WHERE user_id=$user_id AND type='expense'
+WHERE user_id='$user_id' AND type='expense'
 GROUP BY category
 ORDER BY total DESC
 ");
 
 $totalExpense = 0;
-$i=0;
+$i = 0;
 
-while($r = $q->fetch_assoc()){
-    $catLabels[] = $r['category'];
-    $catData[] = $r['total'];
-    $catColors[] = $colors[$i % count($colors)];
-    $totalExpense += $r['total'];
-    $i++;
+if ($q && $q->num_rows > 0) {
+    while($r = $q->fetch_assoc()){
+        $catLabels[] = $r['category'];
+        $catData[] = (int)$r['total'];
+        $catColors[] = $colors[$i % count($colors)];
+        $totalExpense += (int)$r['total'];
+        $i++;
+    }
 }
 
 /* Get recent transactions */
 $recent = $conn->query("
 SELECT * FROM transactions 
-WHERE user_id=$user_id
+WHERE user_id='$user_id'
 ORDER BY created_at DESC
 LIMIT 5
 ");
+
+if (!$recent) {
+    $recent = null;
+}
 ?>
 
 <!DOCTYPE html>
@@ -66,7 +74,6 @@ LIMIT 5
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Finance Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.css">
 
 <style>
 * {
@@ -115,6 +122,7 @@ body {
     width: 260px;
     height: 100vh;
     overflow-y: auto;
+    z-index: 100;
 }
 
 .sidebar-header {
@@ -170,6 +178,7 @@ body {
 .main {
     grid-column: 2;
     padding: 40px;
+    margin-left: 0;
 }
 
 /* HEADER */
@@ -244,7 +253,12 @@ body {
     border-radius: 12px;
     padding: 24px;
     transition: all 0.3s ease;
+    animation: fadeIn 0.4s ease forwards;
 }
+
+.stat-card:nth-child(1) { animation-delay: 0.1s; }
+.stat-card:nth-child(2) { animation-delay: 0.2s; }
+.stat-card:nth-child(3) { animation-delay: 0.3s; }
 
 .stat-card:hover {
     border-color: var(--primary);
@@ -310,6 +324,7 @@ body {
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 24px;
+    animation: fadeIn 0.4s ease forwards;
 }
 
 .card-header {
@@ -416,6 +431,39 @@ body {
     color: var(--text-tertiary);
 }
 
+.view-all-link {
+    color: var(--primary);
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.view-all-link:hover {
+    color: var(--primary-dark);
+}
+
+.select-filter {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.select-filter:hover {
+    border-color: var(--primary);
+}
+
+.select-filter:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
 /* RESPONSIVE */
 @media (max-width: 1200px) {
     .charts-grid {
@@ -492,14 +540,6 @@ body {
         transform: translateY(0);
     }
 }
-
-.stat-card, .card {
-    animation: fadeIn 0.4s ease forwards;
-}
-
-.stat-card:nth-child(1) { animation-delay: 0.1s; }
-.stat-card:nth-child(2) { animation-delay: 0.2s; }
-.stat-card:nth-child(3) { animation-delay: 0.3s; }
 
 /* SCROLLBAR */
 ::-webkit-scrollbar {
@@ -607,7 +647,7 @@ body {
                         </svg>
                     </div>
                 </div>
-                <div class="stat-value">KES <?php echo number_format($totalExpense/12); ?></div>
+                <div class="stat-value">KES <?php echo number_format(count($catLabels) > 0 ? $totalExpense/12 : 0); ?></div>
                 <div class="stat-change positive">↓ 5% optimized</div>
             </div>
         </div>
@@ -618,7 +658,7 @@ body {
                 <div class="card-header">
                     <h3 class="card-title">Spending Trend</h3>
                     <div class="card-actions">
-                        <select style="background: var(--surface); border: 1px solid var(--border); color: var(--text-primary); padding: 6px 12px; border-radius: 6px; font-size: 12px;">
+                        <select class="select-filter">
                             <option>Last 12 Months</option>
                             <option>Last 6 Months</option>
                             <option>Last 3 Months</option>
@@ -634,13 +674,20 @@ body {
                 <div class="card-header">
                     <h3 class="card-title">Category Breakdown</h3>
                 </div>
-                <div class="doughnut-wrapper">
-                    <canvas id="pieChart" style="max-width: 200px;"></canvas>
-                    <div class="doughnut-center">
-                        <div class="doughnut-label">Total</div>
-                        <div class="doughnut-value" id="centerValue">KES 0</div>
+                <?php if(count($catLabels) > 0): ?>
+                    <div class="doughnut-wrapper">
+                        <canvas id="pieChart" style="max-width: 200px;"></canvas>
+                        <div class="doughnut-center">
+                            <div class="doughnut-label">Total</div>
+                            <div class="doughnut-value" id="centerValue">KES 0</div>
+                        </div>
                     </div>
-                </div>
+                <?php else: ?>
+                    <div class="tx-list-empty">
+                        <p>No expenses recorded yet</p>
+                        <p style="font-size: 12px; margin-top: 8px;">Add a transaction to see your breakdown</p>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -648,7 +695,7 @@ body {
         <div class="card transactions-card">
             <div class="card-header">
                 <h3 class="card-title">Recent Transactions</h3>
-                <a href="transactions.php" style="color: var(--primary); text-decoration: none; font-size: 12px; font-weight: 600;">View All →</a>
+                <a href="transactions.php" class="view-all-link">View All →</a>
             </div>
 
             <table class="tx-table">
@@ -660,12 +707,16 @@ body {
                     </tr>
                 </thead>
                 <tbody id="txList">
-                    <?php if($recent->num_rows > 0): ?>
-                        <?php while($tx = $recent->fetch_assoc()): ?>
+                    <?php if($recent && $recent->num_rows > 0): ?>
+                        <?php while($tx = $recent->fetch_assoc()): 
+                            $color = isset($catColors[array_search($tx['category'], $catLabels)]) 
+                                ? $catColors[array_search($tx['category'], $catLabels)] 
+                                : '#3b82f6';
+                        ?>
                             <tr>
                                 <td>
                                     <div class="tx-category">
-                                        <div class="tx-badge" style="background: <?php echo $catColors[array_search($tx['category'], $catLabels)] ?? '#3b82f6'; ?>"></div>
+                                        <div class="tx-badge" style="background: <?php echo $color; ?>"></div>
                                         <?php echo ucfirst($tx['category']); ?>
                                     </div>
                                 </td>
@@ -690,114 +741,122 @@ body {
 let labels = <?php echo json_encode($catLabels); ?>;
 let dataVals = <?php echo json_encode($catData); ?>;
 let colors = <?php echo json_encode($catColors); ?>;
-let total = dataVals.reduce((a,b)=>a+b,0);
+let total = dataVals.length > 0 ? dataVals.reduce((a,b)=>a+b,0) : 0;
 
-document.getElementById('centerValue').innerText = "KES " + total.toLocaleString();
+if (document.getElementById('centerValue')) {
+    document.getElementById('centerValue').innerText = "KES " + total.toLocaleString();
+}
 
 /* PIE CHART */
-const pieCtx = document.getElementById('pieChart').getContext('2d');
-let pie = new Chart(pieCtx, {
-    type: 'doughnut',
-    data: {
-        labels: labels,
-        datasets: [{
-            data: dataVals,
-            backgroundColor: colors,
-            borderColor: '#0f172a',
-            borderWidth: 2,
-            hoverOffset: 8
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                display: false
+if (labels.length > 0) {
+    const pieCtx = document.getElementById('pieChart');
+    if (pieCtx) {
+        let pie = new Chart(pieCtx.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: dataVals,
+                    backgroundColor: colors,
+                    borderColor: '#0f172a',
+                    borderWidth: 2,
+                    hoverOffset: 8
+                }]
             },
-            tooltip: {
-                backgroundColor: '#1e293b',
-                padding: 12,
-                titleColor: '#f1f5f9',
-                bodyColor: '#cbd5e1',
-                borderColor: '#334155',
-                borderWidth: 1,
-                displayColors: true,
-                padding: 12
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: '#1e293b',
+                        padding: 12,
+                        titleColor: '#f1f5f9',
+                        bodyColor: '#cbd5e1',
+                        borderColor: '#334155',
+                        borderWidth: 1,
+                        displayColors: true
+                    }
+                },
+                onHover: (e, el) => {
+                    if(el.length) {
+                        let i = el[0].index;
+                        let label = document.querySelector('.doughnut-label');
+                        if (label) label.innerText = labels[i];
+                        document.getElementById('centerValue').innerText = "KES " + dataVals[i].toLocaleString();
+                    }
+                }
             }
-        },
-        onHover: (e, el) => {
-            if(el.length) {
-                let i = el[0].index;
-                document.querySelector('.doughnut-label').innerText = labels[i];
-                document.getElementById('centerValue').innerText = "KES " + dataVals[i].toLocaleString();
-            }
-        }
+        });
     }
-});
+}
 
 /* LINE CHART */
-const lineCtx = document.getElementById('lineChart').getContext('2d');
-new Chart(lineCtx, {
-    type: 'line',
-    data: {
-        labels: <?php echo json_encode($months); ?>,
-        datasets: [{
-            data: <?php echo json_encode($monthly); ?>,
-            borderColor: '#3b82f6',
-            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-            borderWidth: 3,
-            fill: true,
-            tension: 0.4,
-            pointRadius: 5,
-            pointHoverRadius: 7,
-            pointBackgroundColor: '#3b82f6',
-            pointBorderColor: '#0f172a',
-            pointBorderWidth: 2
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                display: false
-            },
-            tooltip: {
-                backgroundColor: '#1e293b',
-                padding: 12,
-                titleColor: '#f1f5f9',
-                bodyColor: '#cbd5e1',
-                borderColor: '#334155',
-                borderWidth: 1,
-                displayColors: false
-            }
+const lineCtx = document.getElementById('lineChart');
+if (lineCtx) {
+    new Chart(lineCtx.getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: <?php echo json_encode($months); ?>,
+            datasets: [{
+                data: <?php echo json_encode($monthly); ?>,
+                borderColor: '#3b82f6',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                borderWidth: 3,
+                fill: true,
+                tension: 0.4,
+                pointRadius: 5,
+                pointHoverRadius: 7,
+                pointBackgroundColor: '#3b82f6',
+                pointBorderColor: '#0f172a',
+                pointBorderWidth: 2
+            }]
         },
-        scales: {
-            y: {
-                beginAtZero: true,
-                grid: {
-                    color: 'rgba(52, 65, 85, 0.5)',
-                    drawBorder: false
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
                 },
-                ticks: {
-                    color: '#94a3b8',
-                    font: { size: 12 }
+                tooltip: {
+                    backgroundColor: '#1e293b',
+                    padding: 12,
+                    titleColor: '#f1f5f9',
+                    bodyColor: '#cbd5e1',
+                    borderColor: '#334155',
+                    borderWidth: 1,
+                    displayColors: false
                 }
             },
-            x: {
-                grid: {
-                    display: false,
-                    drawBorder: false
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        color: 'rgba(52, 65, 85, 0.5)',
+                        drawBorder: false
+                    },
+                    ticks: {
+                        color: '#94a3b8',
+                        font: { size: 12 }
+                    }
                 },
-                ticks: {
-                    color: '#94a3b8',
-                    font: { size: 12 }
+                x: {
+                    grid: {
+                        display: false,
+                        drawBorder: false
+                    },
+                    ticks: {
+                        color: '#94a3b8',
+                        font: { size: 12 }
+                    }
                 }
             }
         }
-    }
-});
+    });
+}
 </script>
 
 </body>
