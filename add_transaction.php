@@ -7,21 +7,57 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $user_id = $_SESSION['user_id'];
-    $amount = $_POST['amount'];
-    $type = $_POST['type'];
-    $category = $_POST['category'];
+header("Content-Type: text/html; charset=UTF-8");
 
-    if ($amount <= 0) {
-        die("Invalid amount");
+// Detect if request is JSON (API) or form
+$isJson = strpos($_SERVER["CONTENT_TYPE"] ?? '', 'application/json') !== false;
+
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+
+    if ($isJson) {
+        $data = json_decode(file_get_contents("php://input"), true);
+        $amount = $data['amount'] ?? 0;
+        $type = $data['type'] ?? '';
+        $category = $data['category'] ?? '';
+    } else {
+        $amount = $_POST['amount'] ?? 0;
+        $type = $_POST['type'] ?? '';
+        $category = $_POST['category'] ?? '';
     }
 
-    $stmt = $conn->prepare("INSERT INTO transactions (user_id, amount, type, category) VALUES (?, ?, ?, ?)");
-    $stmt->bind_param("idss", $user_id, $amount, $type, $category);
-    $stmt->execute();
+    // ✅ Validation
+    if ($amount <= 0 || !in_array($type, ['income','expense'])) {
+        if ($isJson) {
+            echo json_encode(["status"=>false,"message"=>"Invalid input"]);
+            exit();
+        } else {
+            die("Invalid input");
+        }
+    }
 
-    header("Location: dashboard.php?success=1");
+    // ✅ Insert
+    $stmt = $conn->prepare("
+        INSERT INTO transactions (user_id, amount, type, category)
+        VALUES (?, ?, ?, ?)
+    ");
+    $stmt->bind_param("idss", $_SESSION['user_id'], $amount, $type, $category);
+
+    if ($stmt->execute()) {
+
+        if ($isJson) {
+            echo json_encode(["status"=>true]);
+        } else {
+            header("Location: dashboard.php?success=1");
+        }
+
+    } else {
+        if ($isJson) {
+            echo json_encode(["status"=>false,"message"=>"DB error"]);
+        } else {
+            echo "Error saving transaction";
+        }
+    }
+
     exit();
 }
 ?>
@@ -36,21 +72,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 body {
     background:#030303;
     color:white;
+    font-family:Arial;
     display:flex;
     justify-content:center;
     align-items:center;
     height:100vh;
-    font-family:Arial;
 }
 
 .box {
-    background:rgba(255,255,255,0.05);
-    padding:30px;
-    border-radius:20px;
+    background:#111;
+    padding:25px;
+    border-radius:15px;
     width:300px;
 }
 
-input,select {
+input, select {
     width:100%;
     padding:10px;
     margin:10px 0;
@@ -62,6 +98,14 @@ button {
     background:#e6006f;
     color:white;
     border:none;
+    cursor:pointer;
+}
+
+a {
+    display:block;
+    text-align:center;
+    margin-top:10px;
+    color:#888;
 }
 </style>
 </head>
@@ -72,9 +116,10 @@ button {
 <h2>Add Transaction</h2>
 
 <form method="POST">
-<input type="number" name="amount" placeholder="Amount" required autofocus>
 
-<select name="type" id="type" onchange="updateCat()">
+<input type="number" name="amount" placeholder="Amount" required>
+
+<select name="type" id="type" onchange="updateCategories()">
 <option value="income">Income</option>
 <option value="expense">Expense</option>
 </select>
@@ -82,30 +127,33 @@ button {
 <select name="category" id="category"></select>
 
 <button type="submit">Add</button>
-</form>
 
+<a href="dashboard.php">Back</a>
+
+</form>
 </div>
 
 <script>
 const categories = {
-income:["Salary","Investment"],
-expense:["Food","Rent","Bills","Entertainment","Health","Traveling"]
+    income:["Salary","Investment"],
+    expense:["Food","Rent","Bills","Entertainment","Health","Traveling","Shopping"]
 };
 
-function updateCat(){
-let type = document.getElementById("type").value;
-let cat = document.getElementById("category");
-cat.innerHTML="";
+function updateCategories(){
+    let type = document.getElementById("type").value;
+    let cat = document.getElementById("category");
 
-categories[type].forEach(c=>{
-let o=document.createElement("option");
-o.value=c;
-o.text=c;
-cat.appendChild(o);
-});
+    cat.innerHTML = "";
+
+    categories[type].forEach(c=>{
+        let o = document.createElement("option");
+        o.value = c;
+        o.text = c;
+        cat.appendChild(o);
+    });
 }
 
-updateCat();
+updateCategories();
 </script>
 
 </body>
