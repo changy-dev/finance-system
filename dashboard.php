@@ -11,1118 +11,1367 @@ $user_id = $_SESSION['user_id'];
 
 /* MONTHLY TREND */
 $months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-$monthly = array_fill(0,12,0);
+$monthly = array_fill(0, 12, 0);
 
 $res = $conn->query("
-SELECT MONTH(created_at) m, SUM(amount) total 
-FROM transactions 
-WHERE user_id='$user_id' AND type='expense'
-GROUP BY m
+    SELECT MONTH(created_at) m, SUM(amount) total 
+    FROM transactions 
+    WHERE user_id='$user_id' AND type='expense'
+    GROUP BY m
 ");
-
 if ($res && $res->num_rows > 0) {
-    while($row = $res->fetch_assoc()){
-        $monthly[$row['m']-1] = (int)$row['total'];
+    while ($row = $res->fetch_assoc()) {
+        $monthly[$row['m'] - 1] = (int)$row['total'];
     }
 }
 
 /* CATEGORY */
 $catLabels = [];
-$catData = [];
+$catData   = [];
 $catColors = [];
-
-$colors = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#06b6d4'];
+$colors    = ['#6366f1','#f43f5e','#10b981','#f59e0b','#0ea5e9','#a855f7','#14b8a6'];
 
 $q = $conn->query("
-SELECT category, SUM(amount) total 
-FROM transactions 
-WHERE user_id='$user_id' AND type='expense'
-GROUP BY category
-ORDER BY total DESC
+    SELECT category, SUM(amount) total 
+    FROM transactions 
+    WHERE user_id='$user_id' AND type='expense'
+    GROUP BY category
+    ORDER BY total DESC
 ");
-
 $totalExpense = 0;
 $i = 0;
-
 if ($q && $q->num_rows > 0) {
-    while($r = $q->fetch_assoc()){
+    while ($r = $q->fetch_assoc()) {
         $catLabels[] = $r['category'];
-        $catData[] = (int)$r['total'];
+        $catData[]   = (int)$r['total'];
         $catColors[] = $colors[$i % count($colors)];
         $totalExpense += (int)$r['total'];
         $i++;
     }
 }
 
-/* Get recent transactions */
-$recent = $conn->query("
-SELECT * FROM transactions 
-WHERE user_id='$user_id'
-ORDER BY created_at DESC
-LIMIT 5
-");
-
-if (!$recent) {
-    $recent = null;
+/* INCOME */
+$incomeRes = $conn->query("SELECT SUM(amount) total FROM transactions WHERE user_id='$user_id' AND type='income'");
+$totalIncome = 0;
+if ($incomeRes && $row = $incomeRes->fetch_assoc()) {
+    $totalIncome = (int)$row['total'];
 }
-?>
+$netBalance = $totalIncome - $totalExpense;
 
+/* TRANSACTION COUNT */
+$txCountRes = $conn->query("SELECT COUNT(*) cnt FROM transactions WHERE user_id='$user_id'");
+$txCount = 0;
+if ($txCountRes && $row = $txCountRes->fetch_assoc()) {
+    $txCount = (int)$row['cnt'];
+}
+
+/* RECENT TRANSACTIONS */
+$recent = $conn->query("
+    SELECT * FROM transactions 
+    WHERE user_id='$user_id'
+    ORDER BY created_at DESC
+    LIMIT 8
+");
+if (!$recent) $recent = null;
+
+/* MONTHLY AVG */
+$nonZeroMonths = count(array_filter($monthly));
+$monthlyAvg = $nonZeroMonths > 0 ? round($totalExpense / $nonZeroMonths) : 0;
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Finance Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
 :root {
-    --primary: #3b82f6;
-    --primary-dark: #1e40af;
-    --secondary: #8b5cf6;
-    --success: #10b981;
-    --warning: #f59e0b;
-    --danger: #ef4444;
-    --bg-dark: #0f172a;
-    --bg-darker: #020617;
-    --surface: #1e293b;
-    --border: #334155;
-    --text-primary: #f1f5f9;
-    --text-secondary: #cbd5e1;
-    --text-tertiary: #94a3b8;
+    --ink:        #0d0f12;
+    --ink-2:      #3a3f4a;
+    --ink-3:      #7a8394;
+    --line:       #e8eaed;
+    --line-2:     #f1f3f5;
+    --surface:    #ffffff;
+    --page:       #f6f7f9;
+    --accent:     #6366f1;
+    --accent-lt:  #eef2ff;
+    --green:      #10b981;
+    --green-lt:   #ecfdf5;
+    --red:        #f43f5e;
+    --red-lt:     #fff1f2;
+    --amber:      #f59e0b;
+    --amber-lt:   #fffbeb;
+    --sidebar-w:  240px;
+    --r:          10px;
+    --r-lg:       14px;
+    --shadow:     0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+    --shadow-md:  0 4px 12px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.04);
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    background: linear-gradient(135deg, var(--bg-darker) 0%, #0a0e27 100%);
-    color: var(--text-primary);
-    line-height: 1.6;
+    font-family: 'DM Sans', sans-serif;
+    background: var(--page);
+    color: var(--ink);
+    font-size: 14px;
+    line-height: 1.5;
 }
 
-.layout {
-    display: grid;
-    grid-template-columns: 260px 1fr;
-    min-height: 100vh;
-}
+/* ── LAYOUT ── */
+.layout { display: flex; min-height: 100vh; }
 
-/* SIDEBAR */
+/* ── SIDEBAR ── */
 .sidebar {
-    background: var(--bg-dark);
-    border-right: 1px solid var(--border);
-    padding: 24px 0;
+    width: var(--sidebar-w);
+    flex-shrink: 0;
+    background: var(--ink);
     position: fixed;
-    left: 0;
-    top: 0;
-    width: 260px;
+    top: 0; left: 0;
     height: 100vh;
-    overflow-y: auto;
-    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    z-index: 50;
+    overflow: hidden;
 }
 
-.sidebar-header {
-    padding: 0 20px 30px;
-    border-bottom: 1px solid var(--border);
+.sidebar-brand {
+    padding: 28px 20px 24px;
+    border-bottom: 1px solid rgba(255,255,255,.07);
 }
 
-.logo {
+.brand-mark {
     display: flex;
     align-items: center;
     gap: 10px;
-    font-size: 24px;
-    font-weight: 700;
-    background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
 }
 
-.nav {
-    margin-top: 20px;
+.brand-icon {
+    width: 34px;
+    height: 34px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.brand-icon svg { width: 18px; height: 18px; color: #fff; }
+
+.brand-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: -.2px;
+}
+
+.brand-tagline {
+    font-size: 11px;
+    color: rgba(255,255,255,.4);
+    margin-top: 1px;
+}
+
+.sidebar-nav { padding: 16px 12px; flex: 1; }
+
+.nav-section-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,.25);
+    padding: 0 8px;
+    margin: 8px 0 6px;
 }
 
 .nav-item {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 12px 20px;
-    color: var(--text-tertiary);
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 7px;
+    color: rgba(255,255,255,.5);
     text-decoration: none;
-    transition: all 0.3s ease;
-    cursor: pointer;
-    border-left: 3px solid transparent;
+    font-size: 13.5px;
+    font-weight: 400;
+    transition: background .15s, color .15s;
+    margin-bottom: 2px;
 }
 
-.nav-item:hover {
-    color: var(--text-secondary);
-    background: rgba(59, 130, 246, 0.1);
-}
+.nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+.nav-item:hover { background: rgba(255,255,255,.06); color: rgba(255,255,255,.85); }
 
 .nav-item.active {
-    color: var(--primary);
-    background: rgba(59, 130, 246, 0.15);
-    border-left-color: var(--primary);
+    background: rgba(99,102,241,.2);
+    color: #a5b4fc;
+    font-weight: 500;
 }
 
-.nav-item svg {
-    width: 18px;
-    height: 18px;
-}
-
-/* MAIN */
-.main {
-    grid-column: 2;
-    padding: 40px;
-    margin-left: 0;
-}
-
-/* HEADER */
-.header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 40px;
-}
-
-.header-title {
-    font-size: 32px;
-    font-weight: 700;
-}
-
-.header-subtitle {
-    font-size: 14px;
-    color: var(--text-tertiary);
-    margin-top: 4px;
-}
-
-.header-actions {
-    display: flex;
-    gap: 12px;
-}
-
-.btn {
-    padding: 10px 16px;
-    border-radius: 8px;
-    border: none;
-    font-size: 14px;
+.nav-item .badge {
+    margin-left: auto;
+    background: rgba(99,102,241,.35);
+    color: #a5b4fc;
+    font-size: 10px;
     font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-family: 'DM Mono', monospace;
+}
+
+.sidebar-footer {
+    padding: 16px 12px;
+    border-top: 1px solid rgba(255,255,255,.06);
+}
+
+.user-row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background .15s;
 }
+
+.user-row:hover { background: rgba(255,255,255,.06); }
+
+.user-avatar {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; color: #fff;
+    flex-shrink: 0;
+}
+
+.user-name { font-size: 12.5px; color: rgba(255,255,255,.7); font-weight: 500; }
+.user-role { font-size: 11px; color: rgba(255,255,255,.3); }
+
+/* ── MAIN ── */
+.main {
+    flex: 1;
+    margin-left: var(--sidebar-w);
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+/* ── TOPBAR ── */
+.topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+    padding: 0 32px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+}
+
+.topbar-left { display: flex; align-items: center; gap: 6px; }
+
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--ink-3);
+}
+
+.breadcrumb-sep { color: var(--line); }
+.breadcrumb-current { color: var(--ink); font-weight: 500; }
+
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+
+.topbar-date {
+    font-size: 12px;
+    color: var(--ink-3);
+    font-family: 'DM Mono', monospace;
+}
+
+/* ── BUTTONS ── */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 7px;
+    border: none;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    transition: all .15s;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.btn svg { width: 14px; height: 14px; }
+
+.btn-ghost {
+    background: transparent;
+    color: var(--ink-2);
+    border: 1px solid var(--line);
+}
+
+.btn-ghost:hover { background: var(--line-2); border-color: var(--line); }
 
 .btn-primary {
-    background: var(--primary);
-    color: white;
+    background: var(--accent);
+    color: #fff;
 }
 
-.btn-primary:hover {
-    background: var(--primary-dark);
-    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
-}
+.btn-primary:hover { background: #4f46e5; box-shadow: 0 4px 12px rgba(99,102,241,.3); }
 
-.btn-secondary {
-    background: var(--surface);
-    color: var(--text-primary);
-    border: 1px solid var(--border);
-}
+/* ── PAGE CONTENT ── */
+.content { padding: 28px 32px 48px; }
 
-.btn-secondary:hover {
-    background: rgba(59, 130, 246, 0.1);
-    border-color: var(--primary);
-}
+.page-header { margin-bottom: 24px; }
 
-/* STATS */
-.stats-grid {
+.page-title { font-size: 22px; font-weight: 600; letter-spacing: -.4px; }
+.page-sub { font-size: 13px; color: var(--ink-3); margin-top: 2px; }
+
+/* ── STAT CARDS ── */
+.stats-row {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 20px;
-    margin-bottom: 40px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 20px;
 }
 
-.stat-card {
-    background: var(--bg-dark);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 24px;
-    transition: all 0.3s ease;
-    animation: fadeIn 0.4s ease forwards;
+.stat {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    padding: 20px;
+    box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
+    transition: box-shadow .2s, transform .2s;
 }
 
-.stat-card:nth-child(1) { animation-delay: 0.1s; }
-.stat-card:nth-child(2) { animation-delay: 0.2s; }
-.stat-card:nth-child(3) { animation-delay: 0.3s; }
+.stat:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
 
-.stat-card:hover {
-    border-color: var(--primary);
-    box-shadow: 0 8px 24px rgba(59, 130, 246, 0.1);
-    transform: translateY(-2px);
-}
-
-.stat-header {
+.stat-top {
     display: flex;
-    justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 16px;
+    justify-content: space-between;
+    margin-bottom: 14px;
 }
 
-.stat-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-tertiary);
+.stat-lbl {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--ink-3);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: .5px;
 }
 
-.stat-icon {
-    width: 40px;
-    height: 40px;
+.stat-ico {
+    width: 34px; height: 34px;
     border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(59, 130, 246, 0.15);
-    color: var(--primary);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
 }
 
-.stat-value {
-    font-size: 28px;
-    font-weight: 700;
+.stat-ico svg { width: 16px; height: 16px; }
+
+.ico-blue   { background: #eef2ff; color: var(--accent); }
+.ico-red    { background: var(--red-lt); color: var(--red); }
+.ico-green  { background: var(--green-lt); color: var(--green); }
+.ico-amber  { background: var(--amber-lt); color: var(--amber); }
+
+.stat-val {
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -.6px;
+    font-family: 'DM Mono', monospace;
+    line-height: 1;
     margin-bottom: 8px;
 }
 
-.stat-change {
-    font-size: 12px;
-    color: var(--text-tertiary);
-}
-
-.stat-change.positive {
-    color: var(--success);
-}
-
-.stat-change.negative {
-    color: var(--danger);
-}
-
-/* CHARTS */
-.charts-grid {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: 20px;
-    margin-bottom: 40px;
-}
-
-.card {
-    background: var(--bg-dark);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 24px;
-    animation: fadeIn 0.4s ease forwards;
-}
-
-.card-header {
+.stat-meta {
+    font-size: 11.5px;
+    color: var(--ink-3);
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    margin-bottom: 24px;
+    gap: 4px;
 }
 
-.card-title {
-    font-size: 18px;
-    font-weight: 700;
+.stat-meta .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-size: 10.5px;
+    font-weight: 600;
 }
 
-.card-actions {
+.pill-up   { background: var(--red-lt); color: var(--red); }
+.pill-down { background: var(--green-lt); color: var(--green); }
+.pill-neutral { background: var(--line-2); color: var(--ink-3); }
+
+/* ── CHART GRID ── */
+.charts-row {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+
+/* ── CARDS ── */
+.card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    padding: 20px 22px;
+    box-shadow: var(--shadow);
+}
+
+.card-hd {
     display: flex;
-    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
 }
 
-.chart-container {
-    position: relative;
-    height: 300px;
-}
+.card-title { font-size: 14px; font-weight: 600; letter-spacing: -.2px; }
+.card-sub { font-size: 12px; color: var(--ink-3); margin-top: 1px; }
 
-.doughnut-wrapper {
+/* ── CHART AREA ── */
+.chart-wrap { position: relative; height: 260px; }
+
+/* ── DONUT AREA ── */
+.donut-wrap {
     position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 300px;
+    height: 200px;
 }
 
-.doughnut-center {
+.donut-center {
     position: absolute;
     text-align: center;
     pointer-events: none;
 }
 
-.doughnut-label {
+.donut-lbl { font-size: 11px; font-weight: 500; color: var(--ink-3); text-transform: uppercase; letter-spacing: .5px; }
+.donut-val { font-size: 18px; font-weight: 600; font-family: 'DM Mono', monospace; letter-spacing: -.4px; margin-top: 2px; }
+
+.legend { margin-top: 16px; display: flex; flex-direction: column; gap: 7px; }
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: var(--ink-2);
+}
+
+.legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.legend-lbl { flex: 1; }
+.legend-val { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--ink-3); }
+.legend-pct { font-size: 11px; color: var(--ink-3); width: 36px; text-align: right; }
+
+/* ── SEGMENT FILTER ── */
+.seg { display: flex; gap: 2px; background: var(--line-2); border-radius: 7px; padding: 3px; }
+
+.seg-btn {
+    padding: 4px 10px;
+    border-radius: 5px;
+    border: none;
     font-size: 12px;
-    font-weight: 600;
-    color: var(--text-tertiary);
-    text-transform: uppercase;
+    font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    background: transparent;
+    color: var(--ink-3);
+    transition: all .15s;
 }
 
-.doughnut-value {
-    font-size: 24px;
-    font-weight: 700;
-    margin-top: 4px;
+.seg-btn.active { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+
+/* ── BOTTOM ROW ── */
+.bottom-row {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 14px;
 }
 
-/* TRANSACTIONS */
-.transactions-card {
-    grid-column: 1 / -1;
-}
-
-.tx-table {
-    width: 100%;
-    border-collapse: collapse;
-}
+/* ── TABLE ── */
+.tx-table { width: 100%; border-collapse: collapse; }
 
 .tx-table th {
     text-align: left;
-    padding: 12px 0;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
-    color: var(--text-tertiary);
+    color: var(--ink-3);
     text-transform: uppercase;
-    border-bottom: 1px solid var(--border);
+    letter-spacing: .5px;
+    padding: 0 0 12px;
+    border-bottom: 1px solid var(--line);
 }
 
-.tx-table td {
-    padding: 16px 0;
-    border-bottom: 1px solid var(--border);
-}
+.tx-table td { padding: 12px 0; border-bottom: 1px solid var(--line-2); }
 
-.tx-category {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-weight: 500;
-}
+.tx-table tr:last-child td { border-bottom: none; }
 
-.tx-badge {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
+.tx-cat-wrap { display: flex; align-items: center; gap: 10px; }
+
+.tx-cat-icon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
     flex-shrink: 0;
 }
 
-.tx-amount {
-    font-weight: 600;
-    color: var(--danger);
+.tx-name { font-size: 13px; font-weight: 500; }
+.tx-desc { font-size: 11.5px; color: var(--ink-3); }
+
+.tx-amount { font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 500; }
+.tx-amount.expense { color: var(--red); }
+.tx-amount.income  { color: var(--green); }
+
+.tx-date { font-size: 11.5px; color: var(--ink-3); font-family: 'DM Mono', monospace; }
+
+.tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
+    background: var(--line-2);
+    color: var(--ink-3);
 }
 
-.tx-date {
-    font-size: 12px;
-    color: var(--text-tertiary);
+/* ── QUICK INSIGHTS ── */
+.insights { display: flex; flex-direction: column; gap: 10px; }
+
+.insight-item {
+    background: var(--line-2);
+    border-radius: 9px;
+    padding: 12px 14px;
 }
 
-.tx-list-empty {
+.insight-label { font-size: 11.5px; color: var(--ink-3); font-weight: 500; margin-bottom: 6px; }
+.insight-val { font-size: 18px; font-weight: 600; font-family: 'DM Mono', monospace; letter-spacing: -.3px; }
+.insight-sub { font-size: 11px; color: var(--ink-3); margin-top: 2px; }
+
+.progress-bar {
+    height: 4px;
+    background: var(--line);
+    border-radius: 99px;
+    margin-top: 10px;
+    overflow: hidden;
+}
+
+.progress-fill { height: 100%; border-radius: 99px; transition: width .6s ease; }
+
+/* ── EMPTY STATE ── */
+.empty {
     text-align: center;
     padding: 40px 20px;
-    color: var(--text-tertiary);
+    color: var(--ink-3);
 }
 
-.view-all-link {
-    color: var(--primary);
+.empty-ico { font-size: 32px; margin-bottom: 10px; }
+.empty-txt { font-size: 13px; }
+
+/* ── VIEW ALL ── */
+.view-all {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--accent);
     text-decoration: none;
-    font-size: 12px;
-    font-weight: 600;
-    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    transition: gap .15s;
 }
 
-.view-all-link:hover {
-    color: var(--primary-dark);
-}
+.view-all:hover { gap: 6px; }
 
-.select-filter {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    color: var(--text-primary);
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-size: 12px;
-    transition: all 0.3s ease;
-    cursor: pointer;
-}
-
-.select-filter:hover {
-    border-color: var(--primary);
-}
-
-.select-filter:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-/* MODAL */
+/* ── MODAL ── */
 .modal-overlay {
     display: none;
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.6);
+    inset: 0;
+    background: rgba(10,12,18,.55);
     backdrop-filter: blur(4px);
-    z-index: 1000;
-    animation: fadeIn 0.3s ease;
-}
-
-.modal-overlay.active {
-    display: flex;
+    z-index: 200;
     align-items: center;
     justify-content: center;
 }
 
+.modal-overlay.open { display: flex; }
+
 .modal {
-    background: var(--bg-dark);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 32px;
-    max-width: 500px;
-    width: 90%;
-    animation: slideUp 0.3s ease;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 28px;
+    width: 460px;
+    max-width: 95vw;
+    box-shadow: 0 20px 60px rgba(0,0,0,.18);
+    animation: slideUp .22s ease;
 }
 
-.modal-header {
-    margin-bottom: 24px;
+.modal-hd {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 22px;
 }
 
-.modal-title {
-    font-size: 24px;
-    font-weight: 700;
-}
+.modal-title { font-size: 17px; font-weight: 600; }
+.modal-sub { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
 
 .modal-close {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    background: none;
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    background: var(--line-2);
     border: none;
-    color: var(--text-tertiary);
     cursor: pointer;
-    font-size: 24px;
-    transition: color 0.3s ease;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-3);
+    transition: background .15s;
 }
 
-.modal-close:hover {
-    color: var(--text-primary);
-}
+.modal-close:hover { background: var(--line); color: var(--ink); }
 
-.form-group {
-    margin-bottom: 20px;
-}
+/* ── FORM ── */
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
-.form-label {
+.field { margin-bottom: 14px; }
+
+.field label {
     display: block;
     font-size: 12px;
     font-weight: 600;
-    color: var(--text-tertiary);
+    color: var(--ink-3);
     text-transform: uppercase;
-    margin-bottom: 8px;
+    letter-spacing: .4px;
+    margin-bottom: 6px;
 }
 
-.form-input,
-.form-select,
-.form-textarea {
+.field input,
+.field select,
+.field textarea {
     width: 100%;
+    padding: 9px 11px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
     background: var(--surface);
-    border: 1px solid var(--border);
-    color: var(--text-primary);
-    padding: 10px 12px;
-    border-radius: 6px;
-    font-size: 14px;
-    transition: all 0.3s ease;
+    color: var(--ink);
+    font-size: 13.5px;
+    font-family: 'DM Sans', sans-serif;
+    transition: border .15s, box-shadow .15s;
+    appearance: none;
+    -webkit-appearance: none;
 }
 
-.form-input:focus,
-.form-select:focus,
-.form-textarea:focus {
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
     outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(99,102,241,.12);
 }
 
-.form-textarea {
-    resize: vertical;
-    min-height: 80px;
-}
+.field textarea { resize: vertical; min-height: 72px; }
 
-.modal-actions {
-    display: flex;
-    gap: 12px;
-    margin-top: 32px;
-}
+.type-toggle { display: flex; gap: 8px; }
 
-.modal-actions button {
+.type-btn {
     flex: 1;
-    padding: 12px;
-    border-radius: 8px;
-    border: none;
-    font-weight: 600;
+    padding: 9px;
+    border-radius: 7px;
+    border: 1.5px solid var(--line);
+    background: transparent;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all .15s;
+    color: var(--ink-3);
 }
 
-.modal-actions .btn-primary {
-    background: var(--primary);
-    color: white;
-}
+.type-btn.selected-expense { border-color: var(--red); background: var(--red-lt); color: var(--red); }
+.type-btn.selected-income  { border-color: var(--green); background: var(--green-lt); color: var(--green); }
 
-.modal-actions .btn-primary:hover {
-    background: var(--primary-dark);
-}
+.modal-actions { display: flex; gap: 10px; margin-top: 22px; }
+.modal-actions .btn { flex: 1; justify-content: center; padding: 10px; }
 
-.modal-actions .btn-secondary {
-    background: var(--surface);
-    color: var(--text-primary);
-    border: 1px solid var(--border);
-}
-
-.modal-actions .btn-secondary:hover {
-    background: rgba(59, 130, 246, 0.1);
-}
-
-/* TOAST NOTIFICATION */
+/* ── TOAST ── */
 .toast {
     position: fixed;
-    bottom: 20px;
-    right: 20px;
-    background: var(--success);
-    color: white;
-    padding: 16px 24px;
-    border-radius: 8px;
-    animation: slideUp 0.3s ease;
-    z-index: 2000;
+    bottom: 24px;
+    right: 24px;
+    background: var(--ink);
+    color: #fff;
+    padding: 12px 18px;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: 0 8px 24px rgba(0,0,0,.25);
+    animation: slideUp .25s ease;
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
-.toast.error {
-    background: var(--danger);
+.toast.success::before { content: '✓'; background: var(--green); width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+.toast.error::before   { content: '!'; background: var(--red);   width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+
+/* ── CATEGORY ICONS ── */
+.cat-food        { background: #fff7ed; }
+.cat-transport   { background: #eff6ff; }
+.cat-utilities   { background: #f0fdf4; }
+.cat-entertainment{ background: #fdf4ff; }
+.cat-shopping    { background: #fff1f2; }
+.cat-health      { background: #ecfdf5; }
+.cat-other       { background: #f8fafc; }
+.cat-income      { background: var(--green-lt); }
+
+/* ── ANIMATIONS ── */
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
-/* RESPONSIVE */
-@media (max-width: 1200px) {
-    .charts-grid {
-        grid-template-columns: 1fr;
-    }
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.anim { animation: fadeIn .35s ease both; }
+.anim-d1 { animation-delay: .05s; }
+.anim-d2 { animation-delay: .1s; }
+.anim-d3 { animation-delay: .15s; }
+.anim-d4 { animation-delay: .2s; }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 99px; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 1100px) {
+    .charts-row { grid-template-columns: 1fr; }
+    .bottom-row { grid-template-columns: 1fr; }
+    .stats-row  { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 768px) {
-    .layout {
-        grid-template-columns: 1fr;
-    }
-
-    .sidebar {
-        width: 100%;
-        height: auto;
-        position: relative;
-        border-right: none;
-        border-bottom: 1px solid var(--border);
-        padding: 16px 20px;
-    }
-
-    .sidebar-header {
-        padding: 0;
-        border: none;
-    }
-
-    .nav {
-        display: flex;
-        gap: 8px;
-        margin-top: 0;
-        overflow-x: auto;
-        padding-bottom: 8px;
-    }
-
-    .nav-item {
-        white-space: nowrap;
-        padding: 8px 12px;
-        border-left: none;
-        border-bottom: 2px solid transparent;
-    }
-
-    .nav-item.active {
-        border-left: none;
-        border-bottom-color: var(--primary);
-    }
-
-    .main {
-        padding: 20px;
-    }
-
-    .header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 16px;
-    }
-
-    .stats-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .header-title {
-        font-size: 24px;
-    }
-
-    .modal {
-        padding: 24px;
-    }
+    .sidebar { display: none; }
+    .main { margin-left: 0; }
+    .content { padding: 20px 16px 40px; }
+    .topbar { padding: 0 16px; }
+    .stats-row { grid-template-columns: 1fr 1fr; }
 }
 
-/* ANIMATIONS */
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-    }
-    to {
-        opacity: 1;
-    }
-}
-
-@keyframes slideUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.stat-card, .card {
-    animation: fadeIn 0.4s ease forwards;
-}
-
-/* SCROLLBAR */
-::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-}
-
-::-webkit-scrollbar-track {
-    background: var(--bg-dark);
-}
-
-::-webkit-scrollbar-thumb {
-    background: var(--border);
-    border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: var(--text-tertiary);
+@media (max-width: 480px) {
+    .stats-row { grid-template-columns: 1fr; }
 }
 </style>
 </head>
-
 <body>
 
 <div class="layout">
-    <!-- SIDEBAR -->
-    <div class="sidebar">
-        <div class="sidebar-header">
-            <div class="logo">
-                💰 Finance
+
+    <!-- ── SIDEBAR ── -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-mark">
+                <div class="brand-icon">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <div>
+                    <div class="brand-name">Fintrack</div>
+                    <div class="brand-tagline">Personal Finance</div>
+                </div>
             </div>
         </div>
-        
-        <nav class="nav">
+
+        <nav class="sidebar-nav">
+            <div class="nav-section-label">Overview</div>
+
             <a href="#" class="nav-item active">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-3m0 0l7-4 7 4M5 9v10a1 1 0 001 1h12a1 1 0 001-1V9m-9 16l-7-4m0 0l-2-3m2 3v10a1 1 0 001 1h12a1 1 0 001-1v-10m0 0l2-3" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10-3a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1v-7z"/>
                 </svg>
                 Dashboard
+                <span class="badge">Live</span>
             </a>
+
+            <div class="nav-section-label" style="margin-top:16px;">Money</div>
+
             <a href="transactions.php" class="nav-item">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
                 </svg>
                 Transactions
             </a>
+
+            <a href="budget.php" class="nav-item">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                </svg>
+                Budget
+            </a>
+
+            <div class="nav-section-label" style="margin-top:16px;">Account</div>
+
             <a href="settings.php" class="nav-item">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                 </svg>
                 Settings
             </a>
         </nav>
-    </div>
 
-    <!-- MAIN CONTENT -->
+        <div class="sidebar-footer">
+            <div class="user-row">
+                <div class="user-avatar">U</div>
+                <div>
+                    <div class="user-name">My Account</div>
+                    <div class="user-role">Personal plan</div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ── MAIN ── -->
     <div class="main">
-        <!-- HEADER -->
-        <div class="header">
-            <div>
-                <h1 class="header-title">Welcome Back</h1>
-                <p class="header-subtitle">Here's your financial overview</p>
+
+        <!-- TOPBAR -->
+        <div class="topbar">
+            <div class="topbar-left">
+                <div class="breadcrumb">
+                    <span>Home</span>
+                    <span class="breadcrumb-sep">›</span>
+                    <span class="breadcrumb-current">Dashboard</span>
+                </div>
             </div>
-            <div class="header-actions">
-                <button class="btn btn-secondary">Export</button>
-                <button class="btn btn-primary" onclick="openAddTransactionModal()">+ Add Transaction</button>
+            <div class="topbar-right">
+                <span class="topbar-date"><?php echo date('D, d M Y'); ?></span>
+                <button class="btn btn-ghost" onclick="window.print()">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    Export
+                </button>
+                <button class="btn btn-primary" onclick="openModal()">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    Add Transaction
+                </button>
             </div>
         </div>
 
-        <!-- STATS -->
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-header">
-                    <span class="stat-label">Total Expenses</span>
-                    <div class="stat-icon">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                        </svg>
-                    </div>
-                </div>
-                <div class="stat-value">KES <?php echo number_format($totalExpense); ?></div>
-                <div class="stat-change negative">↑ 12.5% from last month</div>
+        <!-- CONTENT -->
+        <div class="content">
+
+            <div class="page-header">
+                <h1 class="page-title">Financial Overview</h1>
+                <p class="page-sub">All-time summary · <?php echo $txCount; ?> transactions recorded</p>
             </div>
 
-            <div class="stat-card">
-                <div class="stat-header">
-                    <span class="stat-label">Categories</span>
-                    <div class="stat-icon" style="background: rgba(16, 185, 129, 0.15); color: var(--success);">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M9 11l3 3L22 4" />
-                        </svg>
-                    </div>
-                </div>
-                <div class="stat-value"><?php echo count($catLabels); ?></div>
-                <div class="stat-change">Active spending categories</div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-header">
-                    <span class="stat-label">Monthly Average</span>
-                    <div class="stat-icon" style="background: rgba(245, 158, 11, 0.15); color: var(--warning);">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="12 1 v22 M4.22 4.22l15.56 15.56 M4.22 19.78L19.78 4.22" />
-                        </svg>
-                    </div>
-                </div>
-                <div class="stat-value">KES <?php echo number_format(count($catLabels) > 0 ? $totalExpense/12 : 0); ?></div>
-                <div class="stat-change positive">↓ 5% optimized</div>
-            </div>
-        </div>
-
-        <!-- CHARTS -->
-        <div class="charts-grid">
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">Spending Trend</h3>
-                    <div class="card-actions">
-                        <select class="select-filter">
-                            <option>Last 12 Months</option>
-                            <option>Last 6 Months</option>
-                            <option>Last 3 Months</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="chart-container">
-                    <canvas id="lineChart"></canvas>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">Category Breakdown</h3>
-                </div>
-                <?php if(count($catLabels) > 0): ?>
-                    <div class="doughnut-wrapper">
-                        <canvas id="pieChart" style="max-width: 200px;"></canvas>
-                        <div class="doughnut-center">
-                            <div class="doughnut-label">Total</div>
-                            <div class="doughnut-value" id="centerValue">KES 0</div>
+            <!-- STATS -->
+            <div class="stats-row">
+                <div class="stat anim anim-d1">
+                    <div class="stat-top">
+                        <div class="stat-lbl">Total Expenses</div>
+                        <div class="stat-ico ico-red">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z"/></svg>
                         </div>
                     </div>
-                <?php else: ?>
-                    <div class="tx-list-empty">
-                        <p>No expenses recorded yet</p>
-                        <p style="font-size: 12px; margin-top: 8px;">Add a transaction to see your breakdown</p>
+                    <div class="stat-val">KES <?php echo number_format($totalExpense); ?></div>
+                    <div class="stat-meta"><span class="pill pill-up">↑ 12.5%</span> vs last month</div>
+                </div>
+
+                <div class="stat anim anim-d2">
+                    <div class="stat-top">
+                        <div class="stat-lbl">Total Income</div>
+                        <div class="stat-ico ico-green">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 1v8m0 0v1"/></svg>
+                        </div>
                     </div>
-                <?php endif; ?>
-            </div>
-        </div>
+                    <div class="stat-val">KES <?php echo number_format($totalIncome); ?></div>
+                    <div class="stat-meta"><span class="pill pill-neutral">All time</span></div>
+                </div>
 
-        <!-- TRANSACTIONS -->
-        <div class="card transactions-card">
-            <div class="card-header">
-                <h3 class="card-title">Recent Transactions</h3>
-                <a href="transactions.php" class="view-all-link">View All →</a>
+                <div class="stat anim anim-d3">
+                    <div class="stat-top">
+                        <div class="stat-lbl">Net Balance</div>
+                        <div class="stat-ico ico-blue">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg>
+                        </div>
+                    </div>
+                    <div class="stat-val" style="color: <?php echo $netBalance >= 0 ? 'var(--green)' : 'var(--red)'; ?>">
+                        <?php echo ($netBalance >= 0 ? '+' : ''); ?>KES <?php echo number_format($netBalance); ?>
+                    </div>
+                    <div class="stat-meta"><?php echo $netBalance >= 0 ? '<span class="pill pill-down">Positive</span>' : '<span class="pill pill-up">Deficit</span>'; ?> net position</div>
+                </div>
+
+                <div class="stat anim anim-d4">
+                    <div class="stat-top">
+                        <div class="stat-lbl">Monthly Avg</div>
+                        <div class="stat-ico ico-amber">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                        </div>
+                    </div>
+                    <div class="stat-val">KES <?php echo number_format($monthlyAvg); ?></div>
+                    <div class="stat-meta"><span class="pill pill-down">↓ 5%</span> optimized</div>
+                </div>
             </div>
 
-            <table class="tx-table">
-                <thead>
-                    <tr>
-                        <th>Category</th>
-                        <th>Amount</th>
-                        <th>Date</th>
-                    </tr>
-                </thead>
-                <tbody id="txList">
-                    <?php if($recent && $recent->num_rows > 0): ?>
-                        <?php while($tx = $recent->fetch_assoc()): 
-                            $color = isset($catColors[array_search($tx['category'], $catLabels)]) 
-                                ? $catColors[array_search($tx['category'], $catLabels)] 
-                                : '#3b82f6';
+            <!-- CHARTS ROW -->
+            <div class="charts-row">
+                <!-- Line Chart -->
+                <div class="card anim">
+                    <div class="card-hd">
+                        <div>
+                            <div class="card-title">Spending Trend</div>
+                            <div class="card-sub">Monthly expense breakdown</div>
+                        </div>
+                        <div class="seg" id="rangeToggle">
+                            <button class="seg-btn active" data-range="12">12M</button>
+                            <button class="seg-btn" data-range="6">6M</button>
+                            <button class="seg-btn" data-range="3">3M</button>
+                        </div>
+                    </div>
+                    <div class="chart-wrap">
+                        <canvas id="lineChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Donut Chart -->
+                <div class="card anim">
+                    <div class="card-hd">
+                        <div>
+                            <div class="card-title">By Category</div>
+                            <div class="card-sub"><?php echo count($catLabels); ?> categories</div>
+                        </div>
+                    </div>
+
+                    <?php if (count($catLabels) > 0): ?>
+                        <div class="donut-wrap">
+                            <canvas id="pieChart" style="max-width: 160px; max-height: 160px;"></canvas>
+                            <div class="donut-center">
+                                <div class="donut-lbl" id="donutLabel">Total</div>
+                                <div class="donut-val" id="donutVal">KES <?php echo number_format($totalExpense); ?></div>
+                            </div>
+                        </div>
+                        <div class="legend" id="legend"></div>
+                    <?php else: ?>
+                        <div class="empty">
+                            <div class="empty-ico">📊</div>
+                            <div class="empty-txt">No expenses yet.<br>Add your first transaction.</div>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- BOTTOM ROW -->
+            <div class="bottom-row">
+                <!-- Transactions Table -->
+                <div class="card anim">
+                    <div class="card-hd">
+                        <div>
+                            <div class="card-title">Recent Transactions</div>
+                            <div class="card-sub">Last 8 records</div>
+                        </div>
+                        <a href="transactions.php" class="view-all">View all →</a>
+                    </div>
+
+                    <?php if ($recent && $recent->num_rows > 0): ?>
+                    <table class="tx-table">
+                        <thead>
+                            <tr>
+                                <th>Description</th>
+                                <th>Category</th>
+                                <th style="text-align:right">Amount</th>
+                                <th style="text-align:right">Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        <?php while ($tx = $recent->fetch_assoc()):
+                            $catKey = strtolower($tx['category']);
+                            $catEmojis = [
+                                'food'          => '🍽️',
+                                'transport'     => '🚌',
+                                'utilities'     => '💡',
+                                'entertainment' => '🎬',
+                                'shopping'      => '🛍️',
+                                'health'        => '🏥',
+                                'income'        => '💵',
+                                'other'         => '📦',
+                            ];
+                            $emoji = $catEmojis[$catKey] ?? '📦';
+                            $isIncome = strtolower($tx['type'] ?? 'expense') === 'income';
                         ?>
                             <tr>
                                 <td>
-                                    <div class="tx-category">
-                                        <div class="tx-badge" style="background: <?php echo $color; ?>"></div>
-                                        <?php echo ucfirst($tx['category']); ?>
+                                    <div class="tx-cat-wrap">
+                                        <div class="tx-cat-icon cat-<?php echo $catKey; ?>"><?php echo $emoji; ?></div>
+                                        <div>
+                                            <div class="tx-name"><?php echo ucfirst($tx['category']); ?></div>
+                                            <?php if (!empty($tx['description'])): ?>
+                                            <div class="tx-desc"><?php echo htmlspecialchars(substr($tx['description'], 0, 30)); ?></div>
+                                            <?php endif; ?>
+                                        </div>
                                     </div>
                                 </td>
-                                <td><span class="tx-amount">-KES <?php echo number_format($tx['amount']); ?></span></td>
-                                <td><span class="tx-date"><?php echo date('M d, Y', strtotime($tx['created_at'])); ?></span></td>
+                                <td><span class="tag"><?php echo ucfirst($tx['category']); ?></span></td>
+                                <td style="text-align:right">
+                                    <span class="tx-amount <?php echo $isIncome ? 'income' : 'expense'; ?>">
+                                        <?php echo $isIncome ? '+' : '−'; ?>KES <?php echo number_format($tx['amount']); ?>
+                                    </span>
+                                </td>
+                                <td style="text-align:right">
+                                    <span class="tx-date"><?php echo date('d M', strtotime($tx['created_at'])); ?></span>
+                                </td>
                             </tr>
                         <?php endwhile; ?>
+                        </tbody>
+                    </table>
                     <?php else: ?>
-                        <tr>
-                            <td colspan="3" class="tx-list-empty">No transactions yet. Start by adding one!</td>
-                        </tr>
+                        <div class="empty">
+                            <div class="empty-ico">💸</div>
+                            <div class="empty-txt">No transactions yet.<br>Click <strong>Add Transaction</strong> to get started.</div>
+                        </div>
                     <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
+                </div>
 
-    </div>
-</div>
+                <!-- Quick Insights -->
+                <div class="card anim">
+                    <div class="card-hd">
+                        <div>
+                            <div class="card-title">Insights</div>
+                            <div class="card-sub">At a glance</div>
+                        </div>
+                    </div>
+                    <div class="insights">
+                        <div class="insight-item">
+                            <div class="insight-label">Spending Rate</div>
+                            <div class="insight-val"><?php echo $totalIncome > 0 ? round($totalExpense / $totalIncome * 100) : 0; ?>%</div>
+                            <div class="insight-sub">of total income spent</div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width:<?php echo min(100, $totalIncome > 0 ? round($totalExpense/$totalIncome*100) : 0); ?>%; background:<?php echo ($totalExpense/$max(1,$totalIncome)) > .8 ? 'var(--red)' : 'var(--accent)'; ?>"></div>
+                            </div>
+                        </div>
 
-<!-- ADD TRANSACTION MODAL -->
-<div class="modal-overlay" id="transactionModal">
+                        <div class="insight-item">
+                            <div class="insight-label">Top Category</div>
+                            <div class="insight-val"><?php echo !empty($catLabels) ? $catLabels[0] : '—'; ?></div>
+                            <div class="insight-sub"><?php echo !empty($catData) ? 'KES '.number_format($catData[0]).' spent' : 'No data yet'; ?></div>
+                        </div>
+
+                        <div class="insight-item">
+                            <div class="insight-label">Active Categories</div>
+                            <div class="insight-val"><?php echo count($catLabels); ?></div>
+                            <div class="insight-sub">of 7 available</div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width:<?php echo round(count($catLabels)/7*100); ?>%; background:var(--green)"></div>
+                            </div>
+                        </div>
+
+                        <div class="insight-item">
+                            <div class="insight-label">Transactions</div>
+                            <div class="insight-val"><?php echo $txCount; ?></div>
+                            <div class="insight-sub">total recorded</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /content -->
+    </div><!-- /main -->
+</div><!-- /layout -->
+
+
+<!-- ── ADD TRANSACTION MODAL ── -->
+<div class="modal-overlay" id="modal">
     <div class="modal">
-        <button class="modal-close" onclick="closeAddTransactionModal()">✕</button>
-        
-        <div class="modal-header">
-            <h2 class="modal-title">Add Transaction</h2>
+        <div class="modal-hd">
+            <div>
+                <div class="modal-title">Add Transaction</div>
+                <div class="modal-sub">Record a new expense or income</div>
+            </div>
+            <button class="modal-close" onclick="closeModal()">
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
         </div>
 
-        <form id="transactionForm">
-            <div class="form-group">
-                <label class="form-label">Category</label>
-                <select name="category" class="form-select" required>
-                    <option value="">Select a category</option>
-                    <option value="Food">Food & Dining</option>
-                    <option value="Transport">Transport</option>
-                    <option value="Utilities">Utilities</option>
-                    <option value="Entertainment">Entertainment</option>
-                    <option value="Shopping">Shopping</option>
-                    <option value="Health">Health</option>
-                    <option value="Other">Other</option>
-                </select>
+        <form id="txForm">
+            <!-- Type -->
+            <div class="field">
+                <label>Type</label>
+                <div class="type-toggle">
+                    <button type="button" class="type-btn selected-expense" id="btnExpense" onclick="setType('expense')">↓ Expense</button>
+                    <button type="button" class="type-btn" id="btnIncome"  onclick="setType('income')">↑ Income</button>
+                </div>
+                <input type="hidden" name="type" id="typeInput" value="expense">
             </div>
 
-            <div class="form-group">
-                <label class="form-label">Amount (KES)</label>
-                <input type="number" name="amount" class="form-input" placeholder="Enter amount" step="0.01" required>
+            <div class="form-row">
+                <div class="field">
+                    <label>Category</label>
+                    <select name="category" required>
+                        <option value="">Choose…</option>
+                        <option value="Food">🍽️ Food &amp; Dining</option>
+                        <option value="Transport">🚌 Transport</option>
+                        <option value="Utilities">💡 Utilities</option>
+                        <option value="Entertainment">🎬 Entertainment</option>
+                        <option value="Shopping">🛍️ Shopping</option>
+                        <option value="Health">🏥 Health</option>
+                        <option value="Other">📦 Other</option>
+                    </select>
+                </div>
+
+                <div class="field">
+                    <label>Amount (KES)</label>
+                    <input type="number" name="amount" placeholder="0.00" step="0.01" min="0" required>
+                </div>
             </div>
 
-            <div class="form-group">
-                <label class="form-label">Description</label>
-                <textarea name="description" class="form-textarea" placeholder="Add a note (optional)"></textarea>
+            <div class="field">
+                <label>Note <span style="font-weight:400;text-transform:none;color:var(--ink-3)">(optional)</span></label>
+                <textarea name="description" placeholder="What was this for?"></textarea>
             </div>
 
-            <div class="form-group">
-                <label class="form-label">Date</label>
-                <input type="date" name="created_at" class="form-input" value="<?php echo date('Y-m-d'); ?>" required>
+            <div class="field">
+                <label>Date</label>
+                <input type="date" name="created_at" value="<?php echo date('Y-m-d'); ?>" required>
             </div>
 
             <div class="modal-actions">
-                <button type="button" class="btn btn-secondary" onclick="closeAddTransactionModal()">Cancel</button>
-                <button type="submit" class="btn btn-primary">Add Transaction</button>
+                <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Transaction</button>
             </div>
         </form>
     </div>
 </div>
 
+
 <script>
-/* MODAL FUNCTIONS */
-function openAddTransactionModal() {
-    document.getElementById('transactionModal').classList.add('active');
-}
+/* ── DATA FROM PHP ── */
+const allMonths  = <?php echo json_encode($months); ?>;
+const allMonthly = <?php echo json_encode($monthly); ?>;
+const catLabels  = <?php echo json_encode($catLabels); ?>;
+const catData    = <?php echo json_encode($catData); ?>;
+const catColors  = <?php echo json_encode($catColors); ?>;
+const totalExp   = <?php echo $totalExpense; ?>;
 
-function closeAddTransactionModal() {
-    document.getElementById('transactionModal').classList.remove('active');
-}
+/* ── MODAL ── */
+function openModal()  { document.getElementById('modal').classList.add('open'); }
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
 
-/* Close modal when clicking outside */
-document.getElementById('transactionModal').addEventListener('click', function(e) {
-    if (e.target === this) {
-        closeAddTransactionModal();
-    }
+document.getElementById('modal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
 });
 
-/* FORM SUBMISSION */
-document.getElementById('transactionForm').addEventListener('submit', function(e) {
+/* ── TYPE TOGGLE ── */
+function setType(type) {
+    document.getElementById('typeInput').value = type;
+    document.getElementById('btnExpense').className = 'type-btn' + (type === 'expense' ? ' selected-expense' : '');
+    document.getElementById('btnIncome').className  = 'type-btn' + (type === 'income'  ? ' selected-income'  : '');
+}
+
+/* ── FORM SUBMIT ── */
+document.getElementById('txForm').addEventListener('submit', function(e) {
     e.preventDefault();
-    
-    const formData = new FormData(this);
-    
-    fetch('add_transaction.php', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showToast('Transaction added successfully!');
-            closeAddTransactionModal();
-            document.getElementById('transactionForm').reset();
-            setTimeout(() => location.reload(), 1500);
-        } else {
-            showToast('Error: ' + data.message, 'error');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showToast('An error occurred', 'error');
-    });
+    const fd = new FormData(this);
+    fetch('add_transaction.php', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                showToast('Transaction saved!', 'success');
+                closeModal();
+                this.reset();
+                setTimeout(() => location.reload(), 1200);
+            } else {
+                showToast(d.message || 'Error saving', 'error');
+            }
+        })
+        .catch(() => showToast('Network error', 'error'));
 });
 
-/* TOAST NOTIFICATION */
-function showToast(message, type = 'success') {
-    const toast = document.createElement('div');
-    toast.className = 'toast ' + type;
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    
-    setTimeout(() => {
-        toast.remove();
-    }, 3000);
+/* ── TOAST ── */
+function showToast(msg, type = 'success') {
+    const t = document.createElement('div');
+    t.className = 'toast ' + type;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
 }
 
-/* CHARTS */
-let labels = <?php echo json_encode($catLabels); ?>;
-let dataVals = <?php echo json_encode($catData); ?>;
-let colors = <?php echo json_encode($catColors); ?>;
-let total = dataVals.length > 0 ? dataVals.reduce((a,b)=>a+b,0) : 0;
-
-if (document.getElementById('centerValue')) {
-    document.getElementById('centerValue').innerText = "KES " + total.toLocaleString();
-}
-
-/* PIE CHART */
-if (labels.length > 0) {
-    const pieCtx = document.getElementById('pieChart');
-    if (pieCtx) {
-        let pie = new Chart(pieCtx.getContext('2d'), {
-            type: 'doughnut',
-            data: {
-                labels: labels,
-                datasets: [{
-                    data: dataVals,
-                    backgroundColor: colors,
-                    borderColor: '#0f172a',
-                    borderWidth: 2,
-                    hoverOffset: 8
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: {
-                        backgroundColor: '#1e293b',
-                        padding: 12,
-                        titleColor: '#f1f5f9',
-                        bodyColor: '#cbd5e1',
-                        borderColor: '#334155',
-                        borderWidth: 1,
-                        displayColors: true
-                    }
-                },
-                onHover: (e, el) => {
-                    if(el.length) {
-                        let i = el[0].index;
-                        let label = document.querySelector('.doughnut-label');
-                        if (label) label.innerText = labels[i];
-                        document.getElementById('centerValue').innerText = "KES " + dataVals[i].toLocaleString();
-                    }
-                }
-            }
-        });
-    }
-}
+/* ── CHARTS ── */
+Chart.defaults.font.family = "'DM Sans', sans-serif";
 
 /* LINE CHART */
-const lineCtx = document.getElementById('lineChart');
-if (lineCtx) {
-    new Chart(lineCtx.getContext('2d'), {
-        type: 'line',
+let lineChart;
+const lineCtx = document.getElementById('lineChart').getContext('2d');
+
+function buildLineChart(range) {
+    const labs = allMonths.slice(-range);
+    const data = allMonthly.slice(-range);
+
+    if (lineChart) lineChart.destroy();
+
+    lineChart = new Chart(lineCtx, {
+        type: 'bar',
         data: {
-            labels: <?php echo json_encode($months); ?>,
-            datasets: [{
-                data: <?php echo json_encode($monthly); ?>,
-                borderColor: '#3b82f6',
-                backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                borderWidth: 3,
-                fill: true,
-                tension: 0.4,
-                pointRadius: 5,
-                pointHoverRadius: 7,
-                pointBackgroundColor: '#3b82f6',
-                pointBorderColor: '#0f172a',
-                pointBorderWidth: 2
-            }]
+            labels: labs,
+            datasets: [
+                {
+                    type: 'line',
+                    data: data,
+                    borderColor: '#6366f1',
+                    backgroundColor: 'rgba(99,102,241,.08)',
+                    borderWidth: 2.5,
+                    fill: true,
+                    tension: 0.45,
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    pointBackgroundColor: '#6366f1',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    order: 0
+                },
+                {
+                    type: 'bar',
+                    data: data,
+                    backgroundColor: 'rgba(99,102,241,.12)',
+                    borderRadius: 4,
+                    borderSkipped: false,
+                    order: 1
+                }
+            ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
             plugins: {
-                legend: {
-                    display: false
-                },
+                legend: { display: false },
                 tooltip: {
-                    backgroundColor: '#1e293b',
+                    backgroundColor: '#0d0f12',
                     padding: 12,
                     titleColor: '#f1f5f9',
-                    bodyColor: '#cbd5e1',
-                    borderColor: '#334155',
+                    bodyColor: '#94a3b8',
+                    borderColor: '#2a2f3a',
                     borderWidth: 1,
-                    displayColors: false
+                    displayColors: false,
+                    callbacks: {
+                        label: ctx => 'KES ' + ctx.parsed.y.toLocaleString()
+                    }
                 }
             },
             scales: {
                 y: {
                     beginAtZero: true,
-                    grid: {
-                        color: 'rgba(52, 65, 85, 0.5)',
-                        drawBorder: false
-                    },
+                    grid: { color: '#f1f3f5', drawBorder: false },
                     ticks: {
                         color: '#94a3b8',
-                        font: { size: 12 }
+                        font: { size: 11 },
+                        callback: v => 'KES ' + v.toLocaleString()
                     }
                 },
                 x: {
-                    grid: {
-                        display: false,
-                        drawBorder: false
-                    },
-                    ticks: {
-                        color: '#94a3b8',
-                        font: { size: 12 }
-                    }
+                    grid: { display: false, drawBorder: false },
+                    ticks: { color: '#94a3b8', font: { size: 11 } }
                 }
             }
         }
     });
 }
-</script>
 
+buildLineChart(12);
+
+/* Range segment buttons */
+document.getElementById('rangeToggle').addEventListener('click', function(e) {
+    const btn = e.target.closest('.seg-btn');
+    if (!btn) return;
+    document.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    buildLineChart(parseInt(btn.dataset.range));
+});
+
+/* DONUT CHART */
+if (catLabels.length > 0) {
+    const pieCtx = document.getElementById('pieChart').getContext('2d');
+
+    new Chart(pieCtx, {
+        type: 'doughnut',
+        data: {
+            labels: catLabels,
+            datasets: [{
+                data: catData,
+                backgroundColor: catColors,
+                borderColor: '#fff',
+                borderWidth: 3,
+                hoverOffset: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '70%',
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#0d0f12',
+                    padding: 12,
+                    titleColor: '#f1f5f9',
+                    bodyColor: '#94a3b8',
+                    borderColor: '#2a2f3a',
+                    borderWidth: 1,
+                    callbacks: {
+                        label: ctx => ' KES ' + ctx.parsed.toLocaleString()
+                    }
+                }
+            },
+            onHover: (e, el) => {
+                if (el.length) {
+                    const i = el[0].index;
+                    document.getElementById('donutLabel').textContent = catLabels[i];
+                    document.getElementById('donutVal').textContent = 'KES ' + catData[i].toLocaleString();
+                } else {
+                    document.getElementById('donutLabel').textContent = 'Total';
+                    document.getElementById('donutVal').textContent = 'KES ' + totalExp.toLocaleString();
+                }
+            }
+        }
+    });
+
+    /* Build legend */
+    const legend = document.getElementById('legend');
+    catLabels.forEach((lbl, i) => {
+        const pct = totalExp > 0 ? ((catData[i] / totalExp) * 100).toFixed(1) : '0.0';
+        legend.innerHTML += `
+            <div class="legend-item">
+                <div class="legend-dot" style="background:${catColors[i]}"></div>
+                <span class="legend-lbl">${lbl}</span>
+                <span class="legend-val">KES ${catData[i].toLocaleString()}</span>
+                <span class="legend-pct">${pct}%</span>
+            </div>`;
+    });
+}
+</script>
 </body>
 </html>
