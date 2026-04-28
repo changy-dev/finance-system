@@ -10,28 +10,38 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] != 'admin') {
 
 // 2. Handle Adding a New User
 if (isset($_POST['add_user'])) {
-    $name = $conn->real_escape_string($_POST['name']);
-    $email = $conn->real_escape_string($_POST['email']);
-    $password = $_POST['password']; // In a real app, use password_hash()
-    $role = $_POST['role'];
+    $name = trim($_POST['name']);
+    $email = trim($_POST['email']);
+    $password = password_hash($_POST['password'], PASSWORD_BCRYPT);
+    $role = in_array($_POST['role'], ['user', 'admin']) ? $_POST['role'] : 'user';
 
-    $sql = "INSERT INTO users (name, email, password, role, status) VALUES ('$name', '$email', '$password', '$role', 'active')";
-    if ($conn->query($sql)) {
+    $stmt = $conn->prepare("INSERT INTO users (name, email, password, role, status) VALUES (?, ?, ?, ?, 'active')");
+    $stmt->bind_param("ssss", $name, $email, $password, $role);
+    if ($stmt->execute()) {
         $msg = "New user added successfully!";
     } else {
-        $msg = "Error: " . $conn->error;
+        $msg = "Error: " . $stmt->error;
     }
+    $stmt->close();
 }
 
 // 3. Handle Admin Actions (Warn, Freeze, etc.)
 if (isset($_GET['action']) && isset($_GET['id'])) {
-    $id = $_GET['id'];
-    if ($_GET['action'] == 'warn') {
-        $conn->query("UPDATE users SET warnings = warnings + 1 WHERE user_id='$id'");
-    } elseif ($_GET['action'] == 'freeze') {
-        $conn->query("UPDATE users SET status='frozen' WHERE user_id='$id'");
-    } elseif ($_GET['action'] == 'unfreeze') {
-        $conn->query("UPDATE users SET status='active' WHERE user_id='$id'");
+    $id = (int) $_GET['id'];
+    $allowed_actions = ['warn', 'freeze', 'unfreeze'];
+    $action = $_GET['action'];
+
+    if (in_array($action, $allowed_actions)) {
+        if ($action == 'warn') {
+            $stmt = $conn->prepare("UPDATE users SET warnings = warnings + 1 WHERE user_id=?");
+        } elseif ($action == 'freeze') {
+            $stmt = $conn->prepare("UPDATE users SET status='frozen' WHERE user_id=?");
+        } elseif ($action == 'unfreeze') {
+            $stmt = $conn->prepare("UPDATE users SET status='active' WHERE user_id=?");
+        }
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        $stmt->close();
     }
     header("Location: admin_users.php");
     exit();
