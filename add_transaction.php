@@ -2,159 +2,84 @@
 session_start();
 include 'db.php';
 
+header('Content-Type: application/json');
+
+/* ── AUTH CHECK ── */
 if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
-    exit();
+    echo json_encode(['success' => false, 'message' => 'Not authenticated']);
+    exit;
 }
 
-header("Content-Type: text/html; charset=UTF-8");
-
-// Detect if request is JSON (API) or form
-$isJson = strpos($_SERVER["CONTENT_TYPE"] ?? '', 'application/json') !== false;
-
-if ($_SERVER["REQUEST_METHOD"] === "POST") {
-
-    if ($isJson) {
-        $data = json_decode(file_get_contents("php://input"), true);
-        $amount = $data['amount'] ?? 0;
-        $type = $data['type'] ?? '';
-        $category = $data['category'] ?? '';
-    } else {
-        $amount = $_POST['amount'] ?? 0;
-        $type = $_POST['type'] ?? '';
-        $category = $_POST['category'] ?? '';
-    }
-
-    // ✅ Validation
-    if ($amount <= 0 || !in_array($type, ['income','expense'])) {
-        if ($isJson) {
-            echo json_encode(["status"=>false,"message"=>"Invalid input"]);
-            exit();
-        } else {
-            die("Invalid input");
-        }
-    }
-
-    // ✅ Insert
-    $stmt = $conn->prepare("
-        INSERT INTO transactions (user_id, amount, type, category)
-        VALUES (?, ?, ?, ?)
-    ");
-    $stmt->bind_param("idss", $_SESSION['user_id'], $amount, $type, $category);
-
-    if ($stmt->execute()) {
-
-        if ($isJson) {
-            echo json_encode(["status"=>true]);
-        } else {
-            header("Location: dashboard.php?success=1");
-        }
-
-    } else {
-        if ($isJson) {
-            echo json_encode(["status"=>false,"message"=>"DB error"]);
-        } else {
-            echo "Error saving transaction";
-        }
-    }
-
-    exit();
-}
-?>
-
-<!DOCTYPE html>
-<html>
-<head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Add Transaction</title>
-
-<style>
-body {
-    background:#030303;
-    color:white;
-    font-family:Arial;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    height:100vh;
+/* ── ONLY ACCEPT POST ── */
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    echo json_encode(['success' => false, 'message' => 'Invalid request method']);
+    exit;
 }
 
-.box {
-    background:#111;
-    padding:25px;
-    border-radius:15px;
-    width:300px;
+$user_id = (int) $_SESSION['user_id'];
+
+/* ── COLLECT & VALIDATE INPUTS ── */
+$type        = trim($_POST['type']        ?? '');
+$category    = trim($_POST['category']    ?? '');
+$amount      = $_POST['amount']           ?? '';
+$description = trim($_POST['description'] ?? '');
+$created_at  = trim($_POST['created_at']  ?? '');
+
+// Validate type
+$allowed_types = ['expense', 'income'];
+if (!in_array($type, $allowed_types, true)) {
+    echo json_encode(['success' => false, 'message' => 'Invalid transaction type']);
+    exit;
 }
 
-input, select {
-    width:100%;
-    padding:10px;
-    margin:10px 0;
+// Validate category — expense categories + income sources
+$allowed_categories = [
+    // Expense
+    'Food', 'Transport', 'Utilities', 'Entertainment', 'Shopping', 'Health', 'Other',
+    // Income
+    'Salary', 'Business', 'Investments', 'Shares', 'Freelance', 'Family', 'Rental', 'Gift', 'Other Income',
+];
+if (!in_array($category, $allowed_categories, true)) {
+    echo json_encode(['success' => false, 'message' => 'Invalid category']);
+    exit;
 }
 
-button {
-    width:100%;
-    padding:10px;
-    background:#e6006f;
-    color:white;
-    border:none;
-    cursor:pointer;
+// Validate amount
+$amount = floatval($amount);
+if ($amount <= 0) {
+    echo json_encode(['success' => false, 'message' => 'Amount must be greater than 0']);
+    exit;
 }
 
-a {
-    display:block;
-    text-align:center;
-    margin-top:10px;
-    color:#888;
-}
-</style>
-</head>
-
-<body>
-
-<div class="box">
-<h2>Add Transaction</h2>
-
-<form method="POST">
-
-<input type="number" name="amount" placeholder="Amount" required>
-
-<select name="type" id="type" onchange="updateCategories()">
-<option value="income">Income</option>
-<option value="expense">Expense</option>
-</select>
-
-<select name="category" id="category"></select>
-
-<button type="submit">Add</button>
-
-<a href="dashboard.php">Back</a>
-
-</form>
-</div>
-
-<script>
-const categories = {
-    income:["Salary","Investment"],
-    expense:["Food","Rent","Bills","Entertainment","Health","Traveling","Shopping"]
-};
-
-function updateCategories(){
-    let type = document.getElementById("type").value;
-    let cat = document.getElementById("category");
-
-    cat.innerHTML = "";
-
-    categories[type].forEach(c=>{
-        let o = document.createElement("option");
-        o.value = c;
-        o.text = c;
-        cat.appendChild(o);
-    });
+// Validate date
+if (empty($created_at) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $created_at)) {
+    $created_at = date('Y-m-d'); // fall back to today
 }
 
-updateCategories();
-</script>
+// Sanitise description
+$description = htmlspecialchars($description, ENT_QUOTES, 'UTF-8');
 
-</body>
-</html>
+/* ── INSERT ── */
+$stmt = $conn->prepare(
+    "INSERT INTO transactions (user_id, type, category, amount, description, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)"
+);
+
+if (!$stmt) {
+    echo json_encode(['success' => false, 'message' => 'Database prepare failed: ' . $conn->error]);
+    exit;
+}
+
+$stmt->bind_param('issdss', $user_id, $type, $category, $amount, $description, $created_at);
+
+if ($stmt->execute()) {
+    echo json_encode([
+        'success' => true,
+        'message' => 'Transaction saved',
+        'id'      => $stmt->insert_id,
+    ]);
+} else {
+    echo json_encode(['success' => false, 'message' => 'Insert failed: ' . $stmt->error]);
+}
+
+$stmt->close();
