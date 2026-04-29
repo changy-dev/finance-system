@@ -32,7 +32,9 @@ if (isset($_POST['ajax'])) {
         $stmt = $conn->prepare("UPDATE users SET full_name=?, phone=?, status_message=? WHERE user_id=?");
         $stmt->bind_param("sssi", $name, $phone, $bio, $user_id);
         $stmt->execute(); $stmt->close();
-        echo json_encode(['status' => 'ok', 'name' => $name]);
+        // Re-fetch updated profile_pic so client can update the src
+        $updated = $conn->query("SELECT profile_pic FROM users WHERE user_id=$user_id")->fetch_assoc();
+        echo json_encode(['status' => 'ok', 'name' => $name, 'profile_pic' => $updated['profile_pic'] ?: 'default.png']);
 
     } elseif ($action === 'appearance') {
         $theme = in_array($_POST['theme'] ?? '', ['dark','light','auto']) ? $_POST['theme'] : 'dark';
@@ -72,9 +74,11 @@ if (isset($_POST['ajax'])) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Settings — Royal Matrix</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<!-- System fonts — no external font request needed -->
 <style>
 :root {
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-display: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --bg: #080c14;
   --surface: #0e1420;
   --surface2: #141b28;
@@ -97,7 +101,7 @@ if (isset($_POST['ajax'])) {
   --muted: #8892a4;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; }
+body { font-family: var(--font-sans); background: var(--bg); color: var(--text); min-height: 100vh; display: flex; }
 
 /* NAV */
 .settings-nav {
@@ -106,7 +110,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
   display: flex; flex-direction: column; gap: 4px;
   position: sticky; top: 0; height: 100vh; overflow-y: auto;
 }
-.nav-logo { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800; color: var(--text); margin-bottom: 32px; padding: 0 12px; display: flex; align-items: center; gap: 10px; }
+.nav-logo { font-family: var(--font-display); font-size: 18px; font-weight: 800; color: var(--text); margin-bottom: 32px; padding: 0 12px; display: flex; align-items: center; gap: 10px; }
 .nav-logo span { background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 .nav-section-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); padding: 16px 12px 6px; font-weight: 600; }
 .nav-item { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-radius: 12px; cursor: pointer; font-size: 14px; font-weight: 500; color: var(--muted); transition: all 0.2s; border: 1px solid transparent; text-decoration: none; }
@@ -120,7 +124,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 /* MAIN */
 .main { flex: 1; padding: 48px; max-width: 780px; }
 .page-header { margin-bottom: 36px; }
-.page-header h1 { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 800; margin-bottom: 6px; }
+.page-header h1 { font-family: var(--font-display); font-size: 28px; font-weight: 800; margin-bottom: 6px; }
 .page-header p { color: var(--muted); font-size: 14px; }
 
 /* PANELS */
@@ -129,16 +133,21 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 
 /* CARDS */
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; margin-bottom: 20px; }
-.card-title { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+.card-title { font-family: var(--font-display); font-size: 15px; font-weight: 700; margin-bottom: 4px; }
 .card-desc { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
 
-/* AVATAR */
-.avatar-section { display: flex; align-items: center; gap: 24px; margin-bottom: 28px; }
-.avatar-wrap { position: relative; width: 88px; height: 88px; flex-shrink: 0; }
-.avatar-wrap img { width: 88px; height: 88px; border-radius: 50%; object-fit: cover; border: 3px solid var(--border); }
-.avatar-overlay { position: absolute; inset: 0; border-radius: 50%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; opacity: 0; cursor: pointer; transition: 0.2s; font-size: 18px; }
+/* AVATAR — WhatsApp style */
+.avatar-section { display: flex; align-items: center; gap: 28px; margin-bottom: 28px; }
+.avatar-wrap { position: relative; width: 110px; height: 110px; flex-shrink: 0; cursor: pointer; }
+.avatar-wrap img { width: 110px; height: 110px; border-radius: 50%; object-fit: cover; border: 3px solid var(--accent); display: block; transition: filter 0.25s; }
+.avatar-wrap:hover img { filter: brightness(0.5); }
+.avatar-overlay { position: absolute; inset: 0; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
 .avatar-wrap:hover .avatar-overlay { opacity: 1; }
-.avatar-info h3 { font-size: 16px; font-weight: 600; margin-bottom: 3px; }
+.avatar-overlay span { font-size: 22px; line-height: 1; }
+.avatar-overlay small { font-size: 10px; font-weight: 700; color: #fff; text-transform: uppercase; letter-spacing: 0.8px; }
+.avatar-badge { position: absolute; bottom: 4px; right: 4px; width: 30px; height: 30px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg); display: flex; align-items: center; justify-content: center; font-size: 14px; pointer-events: none; transition: transform 0.2s; }
+.avatar-wrap:hover .avatar-badge { transform: scale(1.15); }
+.avatar-info h3 { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
 .avatar-info p { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
 .avatar-btn { font-size: 12px; padding: 7px 14px; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border); color: var(--text); cursor: pointer; font-family: inherit; transition: 0.2s; }
 .avatar-btn:hover { border-color: var(--accent); color: var(--accent); }
@@ -211,7 +220,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 /* STATS */
 .stats-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 20px; }
 .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; text-align: center; }
-.stat-card .stat-val { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 800; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.stat-card .stat-val { font-family: var(--font-display); font-size: 24px; font-weight: 800; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 .stat-card .stat-label { font-size: 11px; color: var(--muted); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
 
 /* TOAST */
@@ -266,11 +275,15 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
       <div class="avatar-section">
         <div class="avatar-wrap" onclick="document.getElementById('avatarInput').click()">
           <img id="avatarPreview" src="uploads/<?php echo htmlspecialchars($user['profile_pic'] ?: 'default.png'); ?>" alt="Avatar">
-          <div class="avatar-overlay">📷</div>
+          <div class="avatar-overlay">
+            <span>📷</span>
+            <small>Change</small>
+          </div>
+          <div class="avatar-badge">📷</div>
         </div>
         <div class="avatar-info">
           <h3 id="displayName"><?php echo htmlspecialchars($user['full_name'] ?: $user['name']); ?></h3>
-          <p><?php echo htmlspecialchars($user['email']); ?></p>
+          <p id="displayPhone"><?php echo htmlspecialchars($user['phone'] ?? 'No phone set'); ?></p>
           <span class="info-badge <?php echo $user['role']==='admin'?'badge-admin':'badge-user'; ?>"><?php echo strtoupper($user['role']); ?></span>
           &nbsp;<span class="info-badge badge-active"><?php echo strtoupper($user['status']); ?></span>
         </div>
@@ -455,7 +468,18 @@ function saveProfile() {
   fetch('settings.php', { method: 'POST', body: fd })
     .then(r => r.json())
     .then(d => {
-      if (d.status === 'ok') { document.getElementById('displayName').textContent = document.getElementById('fullName').value; showToast('Profile updated successfully'); }
+      if (d.status === 'ok') {
+        document.getElementById('displayName').textContent = document.getElementById('fullName').value;
+        const phone = document.getElementById('phone').value;
+        document.getElementById('displayPhone').textContent = phone || 'No phone set';
+        // Update avatar to the persisted server path (not the blob preview)
+        if (d.profile_pic) {
+          document.getElementById('avatarPreview').src = 'uploads/' + d.profile_pic + '?v=' + Date.now();
+        }
+        // Clear the file input so re-saves don't re-upload unless user picks again
+        document.getElementById('avatarInput').value = '';
+        showToast('Profile updated successfully');
+      }
       else showToast(d.message || 'Error saving', 'error');
     });
 }
@@ -512,6 +536,20 @@ function selectLang(lang, el) {
   selectedLang = lang;
   document.querySelectorAll('.lang-card').forEach(c => c.classList.remove('selected'));
   el.classList.add('selected');
+  // Save language immediately so it persists on reload
+  const fd = new FormData();
+  fd.append('ajax', 1); fd.append('action', 'appearance');
+  fd.append('theme', selectedTheme); fd.append('language', lang);
+  fetch('settings.php', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(d => {
+      if (d.status === 'ok') {
+        showToast('Language saved — reloading…');
+        setTimeout(() => location.reload(), 900);
+      } else {
+        showToast('Error saving language', 'error');
+      }
+    });
 }
 
 function saveAppearance() {
@@ -520,7 +558,15 @@ function saveAppearance() {
   fd.append('theme', selectedTheme); fd.append('language', selectedLang);
   fetch('settings.php', { method: 'POST', body: fd })
     .then(r => r.json())
-    .then(d => { if (d.status === 'ok') showToast('Appearance saved'); else showToast('Error saving', 'error'); });
+    .then(d => {
+      if (d.status === 'ok') {
+        showToast('Appearance saved');
+        // Reload after a moment so PHP serves the page with the saved theme
+        setTimeout(() => location.reload(), 900);
+      } else {
+        showToast('Error saving', 'error');
+      }
+    });
 }
 
 function confirmAction(action) {

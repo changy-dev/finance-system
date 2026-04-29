@@ -50,7 +50,7 @@ if ($q && $q->num_rows > 0) {
     }
 }
 
-/* ── INCOME ── */
+
 $incomeRes   = $conn->query("SELECT SUM(amount) total FROM transactions WHERE user_id = $user_id AND type = 'income'");
 $totalIncome = 0;
 if ($incomeRes && $row = $incomeRes->fetch_assoc()) {
@@ -58,14 +58,14 @@ if ($incomeRes && $row = $incomeRes->fetch_assoc()) {
 }
 $netBalance = $totalIncome - $totalExpense;
 
-/* ── TRANSACTION COUNT ── */
+
 $txCountRes = $conn->query("SELECT COUNT(*) cnt FROM transactions WHERE user_id = $user_id");
 $txCount    = 0;
 if ($txCountRes && $row = $txCountRes->fetch_assoc()) {
     $txCount = (int) $row['cnt'];
 }
 
-/* ── RECENT TRANSACTIONS (separate query — never share a result pointer) ── */
+
 $recent = $conn->query("
     SELECT * FROM transactions
     WHERE user_id = $user_id
@@ -74,11 +74,11 @@ $recent = $conn->query("
 ");
 if (!$recent) $recent = null;
 
-/* ── MONTHLY AVG ── */
+
 $nonZeroMonths = count(array_filter($monthly));
 $monthlyAvg    = $nonZeroMonths > 0 ? round($totalExpense / $nonZeroMonths) : 0;
 
-/* ── SPENDING RATE (safe division) ── */
+
 $spendingRate = $totalIncome > 0 ? round($totalExpense / $totalIncome * 100) : 0;
 $progressColor = ($totalIncome > 0 && ($totalExpense / max(1, $totalIncome)) > .8)
     ? 'var(--red)'
@@ -125,7 +125,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--page); color: var(-
 
 .layout { display: flex; min-height: 100vh; }
 
-/* SIDEBAR */
+
 .sidebar { width: var(--sidebar-w); flex-shrink: 0; background: var(--ink); position: fixed; top: 0; left: 0; height: 100vh; display: flex; flex-direction: column; z-index: 50; overflow: hidden; }
 .sidebar-brand { padding: 28px 20px 24px; border-bottom: 1px solid rgba(255,255,255,.07); }
 .brand-mark { display: flex; align-items: center; gap: 10px; }
@@ -147,10 +147,10 @@ body { font-family: 'DM Sans', sans-serif; background: var(--page); color: var(-
 .user-name { font-size: 12.5px; color: rgba(255,255,255,.7); font-weight: 500; }
 .user-role { font-size: 11px; color: rgba(255,255,255,.3); }
 
-/* MAIN */
+
 .main { flex: 1; margin-left: var(--sidebar-w); display: flex; flex-direction: column; min-height: 100vh; }
 
-/* TOPBAR */
+
 .topbar { background: var(--surface); border-bottom: 1px solid var(--line); padding: 0 32px; height: 60px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 40; }
 .topbar-left { display: flex; align-items: center; gap: 6px; }
 .breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-3); }
@@ -159,7 +159,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--page); color: var(-
 .topbar-right { display: flex; align-items: center; gap: 10px; }
 .topbar-date { font-size: 12px; color: var(--ink-3); font-family: 'DM Mono', monospace; }
 
-/* BUTTONS */
+
 .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 7px; border: none; font-size: 13px; font-weight: 500; font-family: 'DM Sans', sans-serif; cursor: pointer; transition: all .15s; text-decoration: none; white-space: nowrap; }
 .btn svg { width: 14px; height: 14px; }
 .btn-ghost { background: transparent; color: var(--ink-2); border: 1px solid var(--line); }
@@ -167,13 +167,13 @@ body { font-family: 'DM Sans', sans-serif; background: var(--page); color: var(-
 .btn-primary { background: var(--accent); color: #fff; }
 .btn-primary:hover { background: #4f46e5; box-shadow: 0 4px 12px rgba(99,102,241,.3); }
 
-/* CONTENT */
+
 .content { padding: 28px 32px 48px; }
 .page-header { margin-bottom: 24px; }
 .page-title { font-size: 22px; font-weight: 600; letter-spacing: -.4px; }
 .page-sub { font-size: 13px; color: var(--ink-3); margin-top: 2px; }
 
-/* STAT CARDS */
+
 .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
 .stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 20px; box-shadow: var(--shadow); position: relative; overflow: hidden; transition: box-shadow .2s, transform .2s; }
 .stat:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }

@@ -32,15 +32,27 @@ if (!in_array($type, $allowed_types, true)) {
     exit;
 }
 
-// Validate category — expense categories + income sources
+// Validate category — must match every option in the dashboard dropdown
 $allowed_categories = [
-    // Expense
-    'Food', 'Transport', 'Utilities', 'Entertainment', 'Shopping', 'Health', 'Other',
+    // Expense — Food & Dining
+    'Groceries', 'Household Supplies', 'Eating Out',
+    // Expense — Transport & Auto
+    'Fuel & Charging', 'Vehicle Maintenance', 'Commuting',
+    // Expense — Utilities & Home
+    'Utilities', 'Home Decor', 'Maintenance & DIY', 'Kitchenware',
+    // Expense — Health & Wellness
+    'Health & Pharmacy', 'Personal Grooming',
+    // Expense — Shopping & Lifestyle
+    'Clothing & Accessories', 'Electronics & Tech', 'Entertainment',
+    // Expense — Miscellaneous
+    'Gifts & Celebrations', 'Pet Supplies', 'Impulse Buys', 'Other',
+    // Legacy expense categories (keep for existing data)
+    'Food', 'Transport', 'Shopping', 'Health',
     // Income
     'Salary', 'Business', 'Investments', 'Shares', 'Freelance', 'Family', 'Rental', 'Gift', 'Other Income',
 ];
 if (!in_array($category, $allowed_categories, true)) {
-    echo json_encode(['success' => false, 'message' => 'Invalid category']);
+    echo json_encode(['success' => false, 'message' => 'Invalid category: ' . htmlspecialchars($category)]);
     exit;
 }
 
