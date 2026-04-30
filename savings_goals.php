@@ -11,18 +11,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'add') {
-        $name       = htmlspecialchars(trim($_POST['name'] ?? ''), ENT_QUOTES, 'UTF-8');
-        $target     = floatval($_POST['target_amount'] ?? 0);
-        $saved      = floatval($_POST['current_saved'] ?? 0);
-        $deadline   = trim($_POST['deadline'] ?? '');
-        $emoji      = htmlspecialchars(trim($_POST['emoji'] ?? '🎯'), ENT_QUOTES, 'UTF-8');
-        if ($name && $target > 0) {
-            $stmt = $conn->prepare("INSERT INTO savings_goals (user_id,name,emoji,target_amount,current_saved,deadline) VALUES (?,?,?,?,?,?)");
-            $stmt->bind_param('issdds', $user_id, $name, $emoji, $target, $saved, $deadline ?: null);
-            echo json_encode(['success' => $stmt->execute()]);
-        } else { echo json_encode(['success'=>false,'message'=>'Name and target required']); }
-        exit;
+    $name       = htmlspecialchars(trim($_POST['name'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $target     = floatval($_POST['target_amount'] ?? 0);
+    $saved      = floatval($_POST['current_saved'] ?? 0);
+    $deadline   = !empty($_POST['deadline']) ? $_POST['deadline'] : null;
+    $emoji      = htmlspecialchars(trim($_POST['emoji'] ?? '🎯'), ENT_QUOTES, 'UTF-8');
+
+    if ($name && $target > 0) {
+
+        if (empty($deadline)) {
+            $stmt = $conn->prepare("
+                INSERT INTO savings_goals
+                (user_id, name, emoji, target_amount, current_saved, deadline)
+                VALUES (?, ?, ?, ?, ?, NULL)
+            ");
+
+            $stmt->bind_param(
+                'issdd',
+                $user_id,
+                $name,
+                $emoji,
+                $target,
+                $saved
+            );
+        } else {
+            $stmt = $conn->prepare("
+                INSERT INTO savings_goals
+                (user_id, name, emoji, target_amount, current_saved, deadline)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ");
+
+            $stmt->bind_param(
+                'issdds',
+                $user_id,
+                $name,
+                $emoji,
+                $target,
+                $saved,
+                $deadline
+            );
+        }
+
+        echo json_encode([
+            'success' => $stmt->execute()
+        ]);
+
+    } else {
+        echo json_encode([
+            'success' => false,
+            'message' => 'Name and target required'
+        ]);
     }
+
+    exit;
+}
 
     if ($action === 'deposit') {
         $goal_id = (int)($_POST['goal_id'] ?? 0);
@@ -147,7 +189,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--page);color:var(--ink);fo
     <a href="transactions.php" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Transactions</a>
     <a href="budget.php" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Budget</a>
     <a href="savings_goals.php" class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 9c0 4-4 4-4 4H7v5H3V9a6 6 0 0 1 12 0h2z"/><circle cx="21" cy="14" r="3"/></svg>Savings Goals</a>
-    <a href="recurring.php" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>Recurring</a>
+    <a href="recurring_transaction.php" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>Recurring</a>
     <a href="debts.php" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>Debts & Loans</a>
     <div class="nav-label" style="margin-top:16px;">Account</div>
     <a href="settings.php" class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</a>
