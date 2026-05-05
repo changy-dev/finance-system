@@ -1,24 +1,31 @@
 <?php
 session_start();
 include 'db.php';
+require_once 'csrf.php';
 
 header('Content-Type: application/json');
 
-/* ── AUTH CHECK ── */
+// ── AUTH CHECK ────────────────────────────────────────────────────────────
 if (!isset($_SESSION['user_id'])) {
     echo json_encode(['success' => false, 'message' => 'Not authenticated']);
     exit;
 }
 
-/* ── ONLY ACCEPT POST ── */
+// ── ONLY ACCEPT POST ──────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'message' => 'Invalid request method']);
     exit;
 }
 
+// ── CSRF CHECK ────────────────────────────────────────────────────────────
+// WHY: Transactions are the most sensitive financial action in the app.
+// Without CSRF protection, a malicious link could add fake transactions
+// to a logged-in user's account without their knowledge.
+csrf_verify_json();
+
 $user_id = (int) $_SESSION['user_id'];
 
-/* ── COLLECT & VALIDATE INPUTS ── */
+// ── COLLECT & VALIDATE INPUTS ─────────────────────────────────────────────
 $type        = trim($_POST['type']        ?? '');
 $category    = trim($_POST['category']    ?? '');
 $amount      = $_POST['amount']           ?? '';
@@ -32,7 +39,7 @@ if (!in_array($type, $allowed_types, true)) {
     exit;
 }
 
-// Validate category — must match every option in the dashboard dropdown
+// Validate category
 $allowed_categories = [
     // Expense — Food & Dining
     'Groceries', 'Household Supplies', 'Eating Out',
@@ -65,13 +72,13 @@ if ($amount <= 0) {
 
 // Validate date
 if (empty($created_at) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $created_at)) {
-    $created_at = date('Y-m-d'); // fall back to today
+    $created_at = date('Y-m-d');
 }
 
 // Sanitise description
 $description = htmlspecialchars($description, ENT_QUOTES, 'UTF-8');
 
-/* ── INSERT ── */
+// ── INSERT ────────────────────────────────────────────────────────────────
 $stmt = $conn->prepare(
     "INSERT INTO transactions (user_id, type, category, amount, description, created_at)
      VALUES (?, ?, ?, ?, ?, ?)"

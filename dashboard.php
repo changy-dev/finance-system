@@ -51,19 +51,19 @@ if ($q && $q->num_rows > 0) {
 }
 
 
-$incomeRes   = $conn->query("SELECT SUM(amount) total FROM transactions WHERE user_id = $user_id AND type = 'income'");
-$totalIncome = 0;
-if ($incomeRes && $row = $incomeRes->fetch_assoc()) {
-    $totalIncome = (int) $row['total'];
-}
+$stmt = $conn->prepare("SELECT SUM(amount) total FROM transactions WHERE user_id = ? AND type = 'income'");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$totalIncome = (int) $stmt->get_result()->fetch_assoc()['total'];
+
 $netBalance = $totalIncome - $totalExpense;
 
 
-$txCountRes = $conn->query("SELECT COUNT(*) cnt FROM transactions WHERE user_id = $user_id");
-$txCount    = 0;
-if ($txCountRes && $row = $txCountRes->fetch_assoc()) {
-    $txCount = (int) $row['cnt'];
-}
+$stmt = $conn->prepare("SELECT COUNT(*) cnt FROM transactions WHERE user_id = ?");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$txCount = (int) $stmt->get_result()->fetch_assoc()['cnt'];
+
 
 
 $recent = $conn->query("

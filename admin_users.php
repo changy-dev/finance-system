@@ -1,19 +1,37 @@
 <?php
 session_start();
 include 'db.php';
+require_once 'csrf.php';
 
-// 1. Security Check
-if (!isset($_SESSION['role']) || $_SESSION['role'] != 'admin') {
-    header("Location: dashboard.php");
+// ── ADMIN ROLE CHECK (re-verified from DB, not just session) ──────────────
+// WHY: $_SESSION['role'] can be tampered with or stale. We re-fetch the role
+// directly from the database on every admin page load so even if someone
+// manipulates their session cookie, they cannot gain admin access.
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
     exit();
 }
 
+$stmt = $conn->prepare("SELECT role FROM users WHERE user_id = ? AND status = 'active' LIMIT 1");
+$stmt->bind_param("i", $_SESSION['user_id']);
+$stmt->execute();
+$authUser = $stmt->get_result()->fetch_assoc();
+$stmt->close();
+
+if (!$authUser || $authUser['role'] !== 'admin') {
+    header("Location: dashboard.php");
+    exit();
+}
+// ─────────────────────────────────────────────────────────────────────────
+
 // 2. Handle Adding a New User
-if (isset($_POST['add_user'])) {
-    $name = trim($_POST['name']);
-    $email = trim($_POST['email']);
-    $password = password_hash($_POST['password'], PASSWORD_BCRYPT);
-    $role = in_array($_POST['role'], ['user', 'admin']) ? $_POST['role'] : 'user';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_user'])) {
+    csrf_verify(); // WHY: prevents cross-site request forgery on this sensitive admin action
+
+    $name     = trim($_POST['name']);
+    $email    = trim($_POST['email']);
+    $password = password_hash($_POST['password'], PASSWORD_BCRYPT, ['cost' => 12]);
+    $role     = in_array($_POST['role'], ['user', 'admin']) ? $_POST['role'] : 'user';
 
     $stmt = $conn->prepare("INSERT INTO users (name, email, password, role, status) VALUES (?, ?, ?, ?, 'active')");
     $stmt->bind_param("ssss", $name, $email, $password, $role);
@@ -25,23 +43,34 @@ if (isset($_POST['add_user'])) {
     $stmt->close();
 }
 
-// 3. Handle Admin Actions (Warn, Freeze, etc.)
+// 3. Handle Admin Actions (Warn, Freeze, Unfreeze)
+// WHY: These actions come via GET links — we verify the admin role above,
+// but we also make sure the target user is not an admin themselves.
 if (isset($_GET['action']) && isset($_GET['id'])) {
-    $id = (int) $_GET['id'];
+    $id              = (int) $_GET['id'];
     $allowed_actions = ['warn', 'freeze', 'unfreeze'];
-    $action = $_GET['action'];
+    $action          = $_GET['action'];
 
     if (in_array($action, $allowed_actions)) {
-        if ($action == 'warn') {
-            $stmt = $conn->prepare("UPDATE users SET warnings = warnings + 1 WHERE user_id=?");
-        } elseif ($action == 'freeze') {
-            $stmt = $conn->prepare("UPDATE users SET status='frozen' WHERE user_id=?");
-        } elseif ($action == 'unfreeze') {
-            $stmt = $conn->prepare("UPDATE users SET status='active' WHERE user_id=?");
+        // Prevent acting on another admin account
+        $chk = $conn->prepare("SELECT role FROM users WHERE user_id = ? LIMIT 1");
+        $chk->bind_param("i", $id);
+        $chk->execute();
+        $target = $chk->get_result()->fetch_assoc();
+        $chk->close();
+
+        if ($target && $target['role'] !== 'admin') {
+            if ($action === 'warn') {
+                $stmt = $conn->prepare("UPDATE users SET warnings = warnings + 1 WHERE user_id = ?");
+            } elseif ($action === 'freeze') {
+                $stmt = $conn->prepare("UPDATE users SET status = 'frozen' WHERE user_id = ?");
+            } elseif ($action === 'unfreeze') {
+                $stmt = $conn->prepare("UPDATE users SET status = 'active' WHERE user_id = ?");
+            }
+            $stmt->bind_param("i", $id);
+            $stmt->execute();
+            $stmt->close();
         }
-        $stmt->bind_param("i", $id);
-        $stmt->execute();
-        $stmt->close();
     }
     header("Location: admin_users.php");
     exit();
@@ -75,11 +104,12 @@ $users = $conn->query("SELECT * FROM users ORDER BY role ASC, name ASC");
 
     <div class="form-section">
         <h3>Add New User</h3>
-        <?php if(isset($msg)) echo "<p style='color:green'>$msg</p>"; ?>
+        <?php if (isset($msg)) echo "<p style='color:green'>" . htmlspecialchars($msg) . "</p>"; ?>
         <form method="POST">
-            <input type="text" name="name" placeholder="Full Name" required>
-            <input type="email" name="email" placeholder="Email Address" required>
-            <input type="password" name="password" placeholder="Password" required>
+            <?php echo csrf_field(); ?>
+            <input type="text"     name="name"     placeholder="Full Name"      required>
+            <input type="email"    name="email"    placeholder="Email Address"  required>
+            <input type="password" name="password" placeholder="Password"       required>
             <select name="role">
                 <option value="user">User</option>
                 <option value="admin">Admin</option>
@@ -100,16 +130,16 @@ $users = $conn->query("SELECT * FROM users ORDER BY role ASC, name ASC");
             </tr>
         </thead>
         <tbody>
-            <?php while($row = $users->fetch_assoc()): ?>
+            <?php while ($row = $users->fetch_assoc()): ?>
             <tr>
                 <td><?php echo htmlspecialchars($row['name']); ?></td>
                 <td><?php echo htmlspecialchars($row['email']); ?></td>
                 <td><span class="badge"><?php echo strtoupper($row['role']); ?></span></td>
-                <td><?php echo $row['warnings']; ?>/3</td>
-                <td><span class="badge <?php echo $row['status']; ?>"><?php echo strtoupper($row['status']); ?></span></td>
+                <td><?php echo (int)$row['warnings']; ?>/3</td>
+                <td><span class="badge <?php echo htmlspecialchars($row['status']); ?>"><?php echo strtoupper($row['status']); ?></span></td>
                 <td>
-                    <?php if($row['role'] != 'admin'): ?>
-                        <a href="admin_users.php?action=warn&id=<?php echo $row['user_id']; ?>">⚠️ Warn</a> | 
+                    <?php if ($row['role'] !== 'admin'): ?>
+                        <a href="admin_users.php?action=warn&id=<?php echo $row['user_id']; ?>">⚠️ Warn</a> |
                         <a href="admin_users.php?action=freeze&id=<?php echo $row['user_id']; ?>">❄️ Freeze</a> |
                         <a href="admin_users.php?action=unfreeze&id=<?php echo $row['user_id']; ?>">🔓 Unfreeze</a>
                     <?php endif; ?>

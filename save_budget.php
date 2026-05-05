@@ -1,22 +1,30 @@
 <?php
 session_start();
 include 'db.php';
+require_once 'csrf.php';
 
 header('Content-Type: application/json');
 
+// ── AUTH CHECK ────────────────────────────────────────────────────────────
 if (!isset($_SESSION['user_id'])) {
     echo json_encode(['success' => false, 'message' => 'Not authenticated']);
     exit;
 }
 
+// ── ONLY ACCEPT POST ──────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'message' => 'Invalid request method']);
     exit;
 }
 
+// ── CSRF CHECK ────────────────────────────────────────────────────────────
+// WHY: Budget amounts are financial data. Without CSRF protection, a malicious
+// site could silently reset all your budget limits to 0 while you're logged in.
+csrf_verify_json();
+
 $user_id = (int) $_SESSION['user_id'];
 
-/* ── VALIDATE INPUT ── */
+// ── VALIDATE INPUT ────────────────────────────────────────────────────────
 $raw = $_POST['budgets'] ?? '';
 if (empty($raw)) {
     echo json_encode(['success' => false, 'message' => 'No budget data received']);
@@ -29,22 +37,10 @@ if (!is_array($budgets)) {
     exit;
 }
 
-/* ── ALLOWED CATEGORIES ── */
-$allowed = ['Food','Transport','Utilities','Entertainment','Shopping','Health','Other'];
+// ── ALLOWED CATEGORIES ────────────────────────────────────────────────────
+$allowed = ['Food', 'Transport', 'Utilities', 'Entertainment', 'Shopping', 'Health', 'Other'];
 
-/* ── UPSERT EACH CATEGORY ── */
-// Uses INSERT ... ON DUPLICATE KEY UPDATE so one query handles both create and update.
-// Requires a UNIQUE KEY on (user_id, category) in the budgets table.
-//
-// CREATE TABLE IF NOT EXISTS budgets (
-//   budget_id  INT          NOT NULL AUTO_INCREMENT PRIMARY KEY,
-//   user_id    INT          NOT NULL,
-//   category   VARCHAR(50)  NOT NULL,
-//   amount     DECIMAL(12,2) NOT NULL DEFAULT 0,
-//   updated_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-//   UNIQUE KEY uq_user_cat (user_id, category)
-// );
-
+// ── UPSERT EACH BUDGET CATEGORY ───────────────────────────────────────────
 $stmt = $conn->prepare(
     "INSERT INTO budgets (user_id, category, amount_limit)
      VALUES (?, ?, ?)
@@ -60,10 +56,9 @@ $saved  = 0;
 $errors = [];
 
 foreach ($budgets as $category => $amount) {
-    // Skip disallowed categories
     if (!in_array($category, $allowed, true)) continue;
 
-    $amount = max(0, (float) $amount); // never negative
+    $amount = max(0, (float) $amount);
 
     $stmt->bind_param('isd', $user_id, $category, $amount);
     if ($stmt->execute()) {
