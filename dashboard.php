@@ -115,6 +115,7 @@ $progressColor = ($totalIncome > 0 && ($totalExpense / max(1, $totalIncome)) > .
     --amber:      #f59e0b;
     --amber-lt:   #fffbeb;
     --sidebar-w:  240px;
+    --sidebar-collapsed: 64px;
     --r:          10px;
     --r-lg:       14px;
     --shadow:     0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
@@ -126,29 +127,46 @@ body { font-family: 'DM Sans', sans-serif; background: var(--page); color: var(-
 .layout { display: flex; min-height: 100vh; }
 
 
-.sidebar { width: var(--sidebar-w); flex-shrink: 0; background: var(--ink); position: fixed; top: 0; left: 0; height: 100vh; display: flex; flex-direction: column; z-index: 50; overflow: hidden; }
-.sidebar-brand { padding: 28px 20px 24px; border-bottom: 1px solid rgba(255,255,255,.07); }
-.brand-mark { display: flex; align-items: center; gap: 10px; }
+.sidebar { width: var(--sidebar-w); flex-shrink: 0; background: var(--ink); position: fixed; top: 0; left: 0; height: 100vh; display: flex; flex-direction: column; z-index: 50; overflow: hidden; transition: width .25s cubic-bezier(.4,0,.2,1); }
+.sidebar.collapsed { width: var(--sidebar-collapsed); }
+.sidebar-brand { padding: 20px 14px 18px; border-bottom: 1px solid rgba(255,255,255,.07); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; min-height: 72px; }
+.brand-mark { display: flex; align-items: center; gap: 10px; overflow: hidden; }
 .brand-icon { width: 34px; height: 34px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .brand-icon svg { width: 18px; height: 18px; color: #fff; }
+.brand-text { overflow: hidden; white-space: nowrap; transition: opacity .2s, width .2s; }
 .brand-name { font-size: 15px; font-weight: 600; color: #fff; letter-spacing: -.2px; }
 .brand-tagline { font-size: 11px; color: rgba(255,255,255,.4); margin-top: 1px; }
-.sidebar-nav { padding: 16px 12px; flex: 1; }
-.nav-section-label { font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,.25); padding: 0 8px; margin: 8px 0 6px; }
-.nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 7px; color: rgba(255,255,255,.5); text-decoration: none; font-size: 13.5px; font-weight: 400; transition: background .15s, color .15s; margin-bottom: 2px; }
+.sidebar-toggle { width: 26px; height: 26px; border-radius: 6px; background: rgba(255,255,255,.07); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,.4); transition: background .15s, color .15s, transform .25s; flex-shrink: 0; }
+.sidebar-toggle:hover { background: rgba(255,255,255,.14); color: rgba(255,255,255,.9); }
+.sidebar.collapsed .sidebar-toggle { transform: rotate(180deg); }
+.sidebar.collapsed .brand-text { opacity: 0; width: 0; pointer-events: none; }
+.sidebar.collapsed .sidebar-toggle { margin: 0 auto; }
+.sidebar-nav { padding: 12px 8px; flex: 1; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.1) transparent; }
+.sidebar-nav::-webkit-scrollbar { width: 4px; }
+.sidebar-nav::-webkit-scrollbar-track { background: transparent; }
+.sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 99px; }
+.nav-section-label { font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,.25); padding: 0 8px; margin: 8px 0 4px; white-space: nowrap; overflow: hidden; transition: opacity .2s; }
+.sidebar.collapsed .nav-section-label { opacity: 0; pointer-events: none; height: 0; margin: 0; padding: 0; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 7px; color: rgba(255,255,255,.5); text-decoration: none; font-size: 13px; font-weight: 400; transition: background .15s, color .15s; margin-bottom: 1px; white-space: nowrap; overflow: hidden; }
 .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
 .nav-item:hover { background: rgba(255,255,255,.06); color: rgba(255,255,255,.85); }
 .nav-item.active { background: rgba(99,102,241,.2); color: #a5b4fc; font-weight: 500; }
-.nav-item .badge { margin-left: auto; background: rgba(99,102,241,.35); color: #a5b4fc; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 10px; font-family: 'DM Mono', monospace; }
-.sidebar-footer { padding: 16px 12px; border-top: 1px solid rgba(255,255,255,.06); }
-.user-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 7px; cursor: pointer; transition: background .15s; }
+.nav-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: opacity .2s, width .2s; flex: 1; display: flex; align-items: center; gap: 0; }
+.nav-badge { margin-left: auto; background: rgba(99,102,241,.35); color: #a5b4fc; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 10px; font-family: 'DM Mono', monospace; flex-shrink: 0; }
+.sidebar.collapsed .nav-label { opacity: 0; width: 0; pointer-events: none; }
+.sidebar.collapsed .nav-badge { display: none; }
+.sidebar.collapsed .nav-item { justify-content: center; padding: 10px; }
+.sidebar-footer { padding: 10px 8px 14px; border-top: 1px solid rgba(255,255,255,.06); flex-shrink: 0; }
+.user-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 7px; cursor: pointer; transition: background .15s; overflow: hidden; white-space: nowrap; }
 .user-row:hover { background: rgba(255,255,255,.06); }
 .user-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #fff; flex-shrink: 0; }
 .user-name { font-size: 12.5px; color: rgba(255,255,255,.7); font-weight: 500; }
 .user-role { font-size: 11px; color: rgba(255,255,255,.3); }
+.sidebar.collapsed .user-row { justify-content: center; padding: 8px; }
 
 
-.main { flex: 1; margin-left: var(--sidebar-w); display: flex; flex-direction: column; min-height: 100vh; }
+.main { flex: 1; margin-left: var(--sidebar-w); display: flex; flex-direction: column; min-height: 100vh; transition: margin-left .25s cubic-bezier(.4,0,.2,1); }
+.layout.sidebar-collapsed .main { margin-left: var(--sidebar-collapsed); }
 
 
 .topbar { background: var(--surface); border-bottom: 1px solid var(--line); padding: 0 32px; height: 60px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 40; }
@@ -310,6 +328,8 @@ body { font-family: 'DM Sans', sans-serif; background: var(--page); color: var(-
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 99px; }
 
+.topbar-menu-btn { gap: 6px; padding: 6px 12px; font-size: 12.5px; }
+
 /* RESPONSIVE */
 @media (max-width: 1100px) { .charts-row { grid-template-columns: 1fr; } .bottom-row { grid-template-columns: 1fr; } .stats-row { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 768px)  { .sidebar { display: none; } .main { margin-left: 0; } .content { padding: 20px 16px 40px; } .topbar { padding: 0 16px; } .stats-row { grid-template-columns: 1fr 1fr; } }
@@ -327,71 +347,80 @@ body { font-family: 'DM Sans', sans-serif; background: var(--page); color: var(-
                 <div class="brand-icon">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 </div>
-                <div>
+                <div class="brand-text">
                     <div class="brand-name">Fintrack</div>
                     <div class="brand-tagline">Personal Finance</div>
                 </div>
             </div>
+            <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">
+                <svg id="toggleIcon" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
+            </button>
         </div>
 
         <nav class="sidebar-nav">
             <div class="nav-section-label">Overview</div>
-            <a href="#" class="nav-item active">
+            <a href="#" class="nav-item active" title="Dashboard">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10-3a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1v-7z"/></svg>
-                Dashboard
-                <span class="badge">Live</span>
+                <span class="nav-label">Dashboard</span>
+                <span class="badge nav-badge">Live</span>
+            </a>
+
+            <a href="net_worth.php" class="nav-item" title="Net Worth">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                <span class="nav-label">Net Worth</span>
+                <span class="nav-badge">New</span>
             </a>
 
             <div class="nav-section-label" style="margin-top:16px;">Money</div>
-            <a href="transactions.php" class="nav-item">
+            <a href="transactions.php" class="nav-item" title="Transactions">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
-                Transactions
+                <span class="nav-label">Transactions</span>
+            </a>
+            <a href="recurring.php" class="nav-item">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:16px;height:16px;flex-shrink:0">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.85l3.181 3.182m0-4.991v4.99" />
+                </svg>
+                <span class="nav-label">Recurring</span>
             </a>
             <a href="budget.php" class="nav-item">
-                <a href="" class="nav-item">
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.85l3.181 3.182m0-4.991v4.99" />
-    </svg>
-    Recurring
-</a>
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
-                Budget
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:16px;height:16px;flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                <span class="nav-label">Budget</span>
             </a>
 
-            <a href="savings_goals.php" class="nav-item">
+            <a href="savings_goals.php" class="nav-item" title="Savings Goals">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-                Savings Goals
+                <span class="nav-label">Savings Goals</span>
             </a>
-            <a href="debts_loans.php" class="nav-item">
+            <a href="debts_loans.php" class="nav-item" title="Debts &amp; Loans">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
-                Debts &amp; Loans
+                <span class="nav-label">Debts &amp; Loans</span>
             </a>
 
             <div class="nav-section-label" style="margin-top:16px;">Tools</div>
-            <a href="health_score.php" class="nav-item">
+            <a href="health_score.php" class="nav-item" title="Health Score">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
-                Health Score
+                <span class="nav-label">Health Score</span>
             </a>
-            <a href="export.php" class="nav-item">
+            <a href="export.php" class="nav-item" title="Export Data">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                Export Data
+                <span class="nav-label">Export Data</span>
             </a>
-            <a href="plans.php" class="nav-item">
+            <a href="plans.php" class="nav-item" title="Upgrade Plan">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
-                Upgrade Plan
+                <span class="nav-label">Upgrade Plan</span>
             </a>
 
             <div class="nav-section-label" style="margin-top:16px;">Account</div>
-            <a href="settings.php" class="nav-item">
+            <a href="settings.php" class="nav-item" title="Settings">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                Settings
+                <span class="nav-label">Settings</span>
             </a>
         </nav>
 
         <div class="sidebar-footer">
             <div class="user-row">
                 <div class="user-avatar">U</div>
-                <div>
+                <div class="nav-label">
                     <div class="user-name">My Account</div>
                     <div class="user-role">Personal plan</div>
                 </div>
@@ -405,6 +434,10 @@ body { font-family: 'DM Sans', sans-serif; background: var(--page); color: var(-
         <!-- TOPBAR -->
         <div class="topbar">
             <div class="topbar-left">
+                <button class="btn btn-ghost topbar-menu-btn" id="topbarMenuBtn" title="Toggle sidebar">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                    Menu
+                </button>
                 <div class="breadcrumb">
                     <span>Home</span>
                     <span class="breadcrumb-sep">›</span>
@@ -1036,6 +1069,28 @@ if (catLabels.length > 0) {
             </div>`;
     });
 }
+/* SIDEBAR TOGGLE */
+(function() {
+    const layout = document.querySelector('.layout');
+    const sidebar = document.querySelector('.sidebar');
+    const toggleBtn = document.getElementById('sidebarToggle');
+    const topbarBtn = document.getElementById('topbarMenuBtn');
+
+    function toggleSidebar() {
+        const collapsed = sidebar.classList.toggle('collapsed');
+        layout.classList.toggle('sidebar-collapsed', collapsed);
+        localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
+    }
+
+    if (toggleBtn) toggleBtn.addEventListener('click', toggleSidebar);
+    if (topbarBtn) topbarBtn.addEventListener('click', toggleSidebar);
+
+    // Restore state
+    if (localStorage.getItem('sidebarCollapsed') === '1') {
+        sidebar.classList.add('collapsed');
+        layout.classList.add('sidebar-collapsed');
+    }
+})();
 </script>
 </body>
 </html>

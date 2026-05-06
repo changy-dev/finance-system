@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: May 04, 2026 at 08:52 AM
+-- Generation Time: May 06, 2026 at 03:31 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -20,6 +20,41 @@ SET time_zone = "+00:00";
 --
 -- Database: `finance_db`
 --
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `assets`
+--
+
+CREATE TABLE `assets` (
+  `asset_id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `name` varchar(120) NOT NULL,
+  `category` varchar(60) NOT NULL DEFAULT 'other',
+  `value` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `note` text DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `audit_log`
+--
+
+CREATE TABLE `audit_log` (
+  `log_id` bigint(20) UNSIGNED NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `action` varchar(100) NOT NULL COMMENT 'e.g. transaction.create, budget.delete',
+  `target_type` varchar(50) DEFAULT NULL COMMENT 'e.g. transaction, budget, goal',
+  `target_id` int(11) DEFAULT NULL,
+  `old_values` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`old_values`)),
+  `new_values` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`new_values`)),
+  `ip_address` varchar(45) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -65,6 +100,22 @@ INSERT INTO `budgets` (`budget_id`, `user_id`, `category`, `amount_limit`, `curr
 (23, 4, 'Shopping', 4500.00, 0.00, NULL),
 (24, 4, 'Health', 1000.00, 0.00, NULL),
 (25, 4, 'Other', 2000.00, 0.00, NULL);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `budget_alerts`
+--
+
+CREATE TABLE `budget_alerts` (
+  `alert_id` int(10) UNSIGNED NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `budget_id` int(11) NOT NULL,
+  `threshold` tinyint(3) UNSIGNED DEFAULT 80 COMMENT 'percentage e.g. 80 = alert at 80%',
+  `sent_at` datetime DEFAULT NULL COMMENT 'last time alert was sent',
+  `is_active` tinyint(1) DEFAULT 1,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -116,6 +167,102 @@ CREATE TABLE `debt_payments` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `email_queue`
+--
+
+CREATE TABLE `email_queue` (
+  `queue_id` int(10) UNSIGNED NOT NULL,
+  `user_id` int(11) DEFAULT NULL,
+  `to_email` varchar(255) NOT NULL,
+  `subject` varchar(255) NOT NULL,
+  `body_html` longtext NOT NULL,
+  `status` enum('pending','sent','failed') DEFAULT 'pending',
+  `attempts` tinyint(3) UNSIGNED DEFAULT 0,
+  `scheduled_at` datetime DEFAULT current_timestamp(),
+  `sent_at` datetime DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `login_attempts`
+--
+
+CREATE TABLE `login_attempts` (
+  `email` varchar(100) NOT NULL,
+  `attempt_count` int(10) UNSIGNED NOT NULL DEFAULT 1,
+  `last_attempt` datetime NOT NULL DEFAULT current_timestamp(),
+  `locked_until` datetime DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `net_worth_snapshots`
+--
+
+CREATE TABLE `net_worth_snapshots` (
+  `snapshot_id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `snapshot_date` date NOT NULL,
+  `total_assets` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `total_liabilities` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `net_worth` decimal(15,2) NOT NULL DEFAULT 0.00
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `payments`
+--
+
+CREATE TABLE `payments` (
+  `payment_id` int(10) UNSIGNED NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `plan_id` int(10) UNSIGNED NOT NULL,
+  `amount` decimal(10,2) NOT NULL,
+  `currency` varchar(5) DEFAULT 'KES',
+  `provider` enum('paystack','stripe') NOT NULL,
+  `provider_ref` varchar(255) NOT NULL,
+  `status` enum('pending','success','failed') DEFAULT 'pending',
+  `paid_at` datetime DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `plans`
+--
+
+CREATE TABLE `plans` (
+  `plan_id` int(10) UNSIGNED NOT NULL,
+  `name` varchar(50) NOT NULL,
+  `price_kes` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `price_usd` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `max_transactions` int(11) DEFAULT NULL COMMENT 'NULL = unlimited',
+  `max_budgets` int(11) DEFAULT NULL,
+  `max_goals` int(11) DEFAULT NULL,
+  `has_exports` tinyint(1) DEFAULT 0,
+  `has_alerts` tinyint(1) DEFAULT 0,
+  `has_ai` tinyint(1) DEFAULT 0,
+  `is_active` tinyint(1) DEFAULT 1,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `plans`
+--
+
+INSERT INTO `plans` (`plan_id`, `name`, `price_kes`, `price_usd`, `max_transactions`, `max_budgets`, `max_goals`, `has_exports`, `has_alerts`, `has_ai`, `is_active`, `created_at`) VALUES
+(1, 'Free', 0.00, 0.00, 100, 3, 2, 0, 0, 0, 1, '2026-05-05 08:13:08'),
+(2, 'Pro', 499.00, 4.99, NULL, NULL, NULL, 1, 1, 1, 1, '2026-05-05 08:13:08'),
+(3, 'Business', 999.00, 9.99, NULL, NULL, NULL, 1, 1, 1, 1, '2026-05-05 08:13:08');
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `recurring_transactions`
 --
 
@@ -162,7 +309,35 @@ CREATE TABLE `savings_goals` (
 --
 
 INSERT INTO `savings_goals` (`goal_id`, `user_id`, `name`, `emoji`, `target_amount`, `current_saved`, `deadline`, `created_at`) VALUES
-(1, 4, 'HOUSE DECOR', '🏠', 4000.00, 100.00, '2026-10-20', '2026-04-29 13:33:18');
+(1, 4, 'HOUSE DECOR', '🏠', 4000.00, 1000.00, '2026-10-20', '2026-04-29 13:33:18');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `subscriptions`
+--
+
+CREATE TABLE `subscriptions` (
+  `sub_id` int(10) UNSIGNED NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `plan_id` int(10) UNSIGNED NOT NULL DEFAULT 1,
+  `status` enum('active','cancelled','expired','trial') DEFAULT 'active',
+  `provider` enum('free','paystack','stripe') DEFAULT 'free',
+  `provider_ref` varchar(255) DEFAULT NULL COMMENT 'Paystack/Stripe reference',
+  `starts_at` datetime DEFAULT current_timestamp(),
+  `expires_at` datetime DEFAULT NULL COMMENT 'NULL = never expires (free)',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `subscriptions`
+--
+
+INSERT INTO `subscriptions` (`sub_id`, `user_id`, `plan_id`, `status`, `provider`, `provider_ref`, `starts_at`, `expires_at`, `created_at`) VALUES
+(1, 5, 1, 'active', 'free', NULL, '2026-05-05 11:13:35', NULL, '2026-05-05 08:13:35'),
+(2, 11, 1, 'active', 'free', NULL, '2026-05-05 11:13:35', NULL, '2026-05-05 08:13:35'),
+(3, 4, 1, 'active', 'free', NULL, '2026-05-05 11:13:35', NULL, '2026-05-05 08:13:35'),
+(4, 10, 1, 'active', 'free', NULL, '2026-05-05 11:13:35', NULL, '2026-05-05 08:13:35');
 
 -- --------------------------------------------------------
 
@@ -218,7 +393,7 @@ INSERT INTO `transactions` (`transaction_id`, `user_id`, `type`, `amount`, `cate
 (44, 4, 'expense', 500.00, 'Entertainment', '2026-04-25', 0, '2026-04-24 21:00:00', 'movies'),
 (45, 4, 'income', 5000.00, 'Shares', '2026-04-25', 0, '2026-04-24 21:00:00', 'Telkom shares'),
 (46, 4, 'income', 15000.00, 'Salary', '2026-04-28', 0, '2026-04-27 21:00:00', 'web design'),
-(47, 4, 'expense', 2500.00, 'Home Decor', '0000-00-00', 0, '2026-04-28 21:00:00', 'Plants');
+(47, 4, 'expense', 2500.00, 'Home Decor', '2026-04-29', 0, '2026-04-28 21:00:00', 'Plants');
 
 -- --------------------------------------------------------
 
@@ -252,7 +427,7 @@ CREATE TABLE `users` (
 
 INSERT INTO `users` (`user_id`, `full_name`, `username`, `name`, `email`, `phone`, `password`, `otp_code`, `role`, `status`, `warnings`, `status_message`, `profile_pic`, `is_verified`, `is_active`, `language`, `theme`) VALUES
 (4, 'STEVE MUSYOKI', NULL, 'STEVE MUSYOKI', 'stephenmusyoki792@gmail.com', '0788909090', '$2y$10$aXpDLb84.EzFfuXszFn5aOPy4V1oK.XjfiMga9pKn9WkKpFQRs1xe', NULL, 'admin', 'active', 0, '', '1777446965_4.jpeg', 0, 0, 'en', 'dark'),
-(5, '', NULL, 'ANN MUSYOKI', 'Annmusyoki2323@gmail.com', '0748850990', 'Angel mwende21', NULL, 'user', 'active', 0, NULL, 'default.png', 1, 0, 'en', 'auto'),
+(5, '', NULL, 'ANN MUSYOKI', 'Annmusyoki2323@gmail.com', '0748850990', '$2y$12$78m2lbpobPFVOkMXda6aNuhvJGagfi6z4xoOxpdrYG3zQonV4xsXm', NULL, 'user', 'active', 0, NULL, 'default.png', 1, 0, 'en', 'auto'),
 (10, '', NULL, 'ANN MUSYOKI', 'stevhbjhvfg@gmail.com', '0748850990', '$2y$10$VSpygP1BluhwMjLVVo4XouCWBBf7QtQKG/2O5BzdQmM87qVPrzPCK', '488183', 'user', 'active', 0, NULL, 'default.png', 0, 0, 'en', 'auto'),
 (11, 'will smith', NULL, '', 'marleymusyoki@gmail.com', '0748850990', '$2y$10$iimOY9V0.lEOfkbbuKNBselGFxd./B68miOQARAH3rcrbAAoOJp6.', NULL, 'user', 'active', 0, NULL, '1776540987_New Project (2).jpg', 0, 0, NULL, NULL);
 
@@ -261,18 +436,42 @@ INSERT INTO `users` (`user_id`, `full_name`, `username`, `name`, `email`, `phone
 --
 
 --
+-- Indexes for table `assets`
+--
+ALTER TABLE `assets`
+  ADD PRIMARY KEY (`asset_id`),
+  ADD KEY `user_id` (`user_id`);
+
+--
+-- Indexes for table `audit_log`
+--
+ALTER TABLE `audit_log`
+  ADD PRIMARY KEY (`log_id`),
+  ADD KEY `idx_user_action` (`user_id`,`action`),
+  ADD KEY `idx_created` (`created_at`);
+
+--
 -- Indexes for table `budgets`
 --
 ALTER TABLE `budgets`
   ADD PRIMARY KEY (`budget_id`),
-  ADD KEY `user_id` (`user_id`);
+  ADD KEY `idx_user_category` (`user_id`,`category`);
+
+--
+-- Indexes for table `budget_alerts`
+--
+ALTER TABLE `budget_alerts`
+  ADD PRIMARY KEY (`alert_id`),
+  ADD UNIQUE KEY `uk_user_budget` (`user_id`,`budget_id`),
+  ADD KEY `idx_user` (`user_id`);
 
 --
 -- Indexes for table `debts_loans`
 --
 ALTER TABLE `debts_loans`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `user_id` (`user_id`);
+  ADD KEY `user_id` (`user_id`),
+  ADD KEY `idx_user_status` (`user_id`,`status`);
 
 --
 -- Indexes for table `debt_payments`
@@ -282,11 +481,47 @@ ALTER TABLE `debt_payments`
   ADD KEY `debt_id` (`debt_id`);
 
 --
+-- Indexes for table `email_queue`
+--
+ALTER TABLE `email_queue`
+  ADD PRIMARY KEY (`queue_id`),
+  ADD KEY `idx_status` (`status`,`scheduled_at`);
+
+--
+-- Indexes for table `login_attempts`
+--
+ALTER TABLE `login_attempts`
+  ADD PRIMARY KEY (`email`);
+
+--
+-- Indexes for table `net_worth_snapshots`
+--
+ALTER TABLE `net_worth_snapshots`
+  ADD PRIMARY KEY (`snapshot_id`),
+  ADD UNIQUE KEY `uq_user_date` (`user_id`,`snapshot_date`),
+  ADD KEY `user_id` (`user_id`);
+
+--
+-- Indexes for table `payments`
+--
+ALTER TABLE `payments`
+  ADD PRIMARY KEY (`payment_id`),
+  ADD KEY `idx_user` (`user_id`),
+  ADD KEY `idx_ref` (`provider_ref`);
+
+--
+-- Indexes for table `plans`
+--
+ALTER TABLE `plans`
+  ADD PRIMARY KEY (`plan_id`);
+
+--
 -- Indexes for table `recurring_transactions`
 --
 ALTER TABLE `recurring_transactions`
   ADD PRIMARY KEY (`recurring_id`),
-  ADD KEY `user_id` (`user_id`);
+  ADD KEY `user_id` (`user_id`),
+  ADD KEY `idx_user_active` (`user_id`,`is_active`);
 
 --
 -- Indexes for table `savings_goals`
@@ -296,11 +531,20 @@ ALTER TABLE `savings_goals`
   ADD KEY `user_id` (`user_id`);
 
 --
+-- Indexes for table `subscriptions`
+--
+ALTER TABLE `subscriptions`
+  ADD PRIMARY KEY (`sub_id`),
+  ADD UNIQUE KEY `uk_user` (`user_id`),
+  ADD KEY `idx_status` (`status`);
+
+--
 -- Indexes for table `transactions`
 --
 ALTER TABLE `transactions`
   ADD PRIMARY KEY (`transaction_id`),
-  ADD KEY `user_id` (`user_id`);
+  ADD KEY `idx_user_date` (`user_id`,`date`),
+  ADD KEY `idx_user_type` (`user_id`,`type`);
 
 --
 -- Indexes for table `users`
@@ -314,10 +558,28 @@ ALTER TABLE `users`
 --
 
 --
+-- AUTO_INCREMENT for table `assets`
+--
+ALTER TABLE `assets`
+  MODIFY `asset_id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `audit_log`
+--
+ALTER TABLE `audit_log`
+  MODIFY `log_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `budgets`
 --
 ALTER TABLE `budgets`
   MODIFY `budget_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=26;
+
+--
+-- AUTO_INCREMENT for table `budget_alerts`
+--
+ALTER TABLE `budget_alerts`
+  MODIFY `alert_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `debts_loans`
@@ -332,6 +594,30 @@ ALTER TABLE `debt_payments`
   MODIFY `payment_id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `email_queue`
+--
+ALTER TABLE `email_queue`
+  MODIFY `queue_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `net_worth_snapshots`
+--
+ALTER TABLE `net_worth_snapshots`
+  MODIFY `snapshot_id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `payments`
+--
+ALTER TABLE `payments`
+  MODIFY `payment_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `plans`
+--
+ALTER TABLE `plans`
+  MODIFY `plan_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+
+--
 -- AUTO_INCREMENT for table `recurring_transactions`
 --
 ALTER TABLE `recurring_transactions`
@@ -342,6 +628,12 @@ ALTER TABLE `recurring_transactions`
 --
 ALTER TABLE `savings_goals`
   MODIFY `goal_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
+-- AUTO_INCREMENT for table `subscriptions`
+--
+ALTER TABLE `subscriptions`
+  MODIFY `sub_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `transactions`
