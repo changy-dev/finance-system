@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: May 06, 2026 at 03:31 PM
+-- Generation Time: May 07, 2026 at 09:35 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -37,6 +37,13 @@ CREATE TABLE `assets` (
   `created_at` datetime DEFAULT current_timestamp(),
   `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `assets`
+--
+
+INSERT INTO `assets` (`asset_id`, `user_id`, `name`, `category`, `value`, `note`, `created_at`, `updated_at`) VALUES
+(1, 4, 'Equity bank savings', 'cash', 5000000.00, 'Account last updated on 30/05/2026', '2026-05-07 09:31:21', '2026-05-07 09:31:21');
 
 -- --------------------------------------------------------
 
@@ -144,7 +151,7 @@ CREATE TABLE `debts_loans` (
 --
 
 INSERT INTO `debts_loans` (`id`, `user_id`, `record_type`, `title`, `counterparty`, `principal`, `amount_paid`, `interest_rate`, `due_date`, `status`, `notes`, `created_at`, `updated_at`) VALUES
-(1, 4, 'debt', 'car loan', 'Barclays bank', 1500000.00, 750000.00, 9.00, '2026-10-10', 'active', '', '2026-04-30 11:12:49', '2026-04-30 11:12:49'),
+(1, 4, 'debt', 'car loan', 'Barclays bank', 1500000.00, 1250000.00, 9.00, '2026-10-10', 'active', '', '2026-04-30 11:12:49', '2026-05-07 06:38:42'),
 (2, 4, 'loan', 'House decor', 'Fred', 250000.00, 55000.00, 6.00, '2026-07-24', 'active', '', '2026-04-30 11:14:58', '2026-04-30 11:14:58'),
 (5, 4, 'debt', 'House decor', 'Barclays bank', 4500000.00, 4500000.00, 4.00, NULL, 'paid', '', '2026-04-30 11:27:19', '2026-04-30 11:27:19');
 
@@ -163,6 +170,13 @@ CREATE TABLE `debt_payments` (
   `note` varchar(255) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `debt_payments`
+--
+
+INSERT INTO `debt_payments` (`payment_id`, `debt_id`, `user_id`, `amount`, `paid_on`, `note`, `created_at`) VALUES
+(1, 1, 4, 500000.00, '2026-05-07', 'cash', '2026-05-07 06:38:42');
 
 -- --------------------------------------------------------
 
@@ -210,6 +224,13 @@ CREATE TABLE `net_worth_snapshots` (
   `total_liabilities` decimal(15,2) NOT NULL DEFAULT 0.00,
   `net_worth` decimal(15,2) NOT NULL DEFAULT 0.00
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `net_worth_snapshots`
+--
+
+INSERT INTO `net_worth_snapshots` (`snapshot_id`, `user_id`, `snapshot_date`, `total_assets`, `total_liabilities`, `net_worth`) VALUES
+(1, 4, '2026-05-07', 5001000.00, 945000.00, 4056000.00);
 
 -- --------------------------------------------------------
 
@@ -426,7 +447,7 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`user_id`, `full_name`, `username`, `name`, `email`, `phone`, `password`, `otp_code`, `role`, `status`, `warnings`, `status_message`, `profile_pic`, `is_verified`, `is_active`, `language`, `theme`) VALUES
-(4, 'STEVE MUSYOKI', NULL, 'STEVE MUSYOKI', 'stephenmusyoki792@gmail.com', '0788909090', '$2y$10$aXpDLb84.EzFfuXszFn5aOPy4V1oK.XjfiMga9pKn9WkKpFQRs1xe', NULL, 'admin', 'active', 0, '', '1777446965_4.jpeg', 0, 0, 'en', 'dark'),
+(4, 'STEVE MUSYOKI', NULL, 'STEVE MUSYOKI', 'stephenmusyoki792@gmail.com', '0788909090', '$2y$10$aXpDLb84.EzFfuXszFn5aOPy4V1oK.XjfiMga9pKn9WkKpFQRs1xe', NULL, 'admin', 'active', 0, '', '1777446965_4.jpeg', 0, 0, 'fr', 'dark'),
 (5, '', NULL, 'ANN MUSYOKI', 'Annmusyoki2323@gmail.com', '0748850990', '$2y$12$78m2lbpobPFVOkMXda6aNuhvJGagfi6z4xoOxpdrYG3zQonV4xsXm', NULL, 'user', 'active', 0, NULL, 'default.png', 1, 0, 'en', 'auto'),
 (10, '', NULL, 'ANN MUSYOKI', 'stevhbjhvfg@gmail.com', '0748850990', '$2y$10$VSpygP1BluhwMjLVVo4XouCWBBf7QtQKG/2O5BzdQmM87qVPrzPCK', '488183', 'user', 'active', 0, NULL, 'default.png', 0, 0, 'en', 'auto'),
 (11, 'will smith', NULL, '', 'marleymusyoki@gmail.com', '0748850990', '$2y$10$iimOY9V0.lEOfkbbuKNBselGFxd./B68miOQARAH3rcrbAAoOJp6.', NULL, 'user', 'active', 0, NULL, '1776540987_New Project (2).jpg', 0, 0, NULL, NULL);
@@ -561,7 +582,7 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `assets`
 --
 ALTER TABLE `assets`
-  MODIFY `asset_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `asset_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `audit_log`
@@ -585,13 +606,13 @@ ALTER TABLE `budget_alerts`
 -- AUTO_INCREMENT for table `debts_loans`
 --
 ALTER TABLE `debts_loans`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `debt_payments`
 --
 ALTER TABLE `debt_payments`
-  MODIFY `payment_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `payment_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `email_queue`
@@ -603,7 +624,7 @@ ALTER TABLE `email_queue`
 -- AUTO_INCREMENT for table `net_worth_snapshots`
 --
 ALTER TABLE `net_worth_snapshots`
-  MODIFY `snapshot_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `snapshot_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `payments`

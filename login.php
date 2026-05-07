@@ -105,22 +105,29 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 if ($user['status'] !== 'active') {
                     $error = "Your account has been suspended. Contact support.";
                 } else {
-                    // ── CRITICAL FIX #4: Regenerate session ID on login ──
-                    session_regenerate_id(true);
+                    // ── 2FA: Generate OTP and redirect to verify page ──
+                    require_once __DIR__ . '/mailer.php';
+                    $otp_plain  = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+                    $otp_hash   = password_hash($otp_plain, PASSWORD_BCRYPT);
+                    $otp_expiry = date('Y-m-d H:i:s', time() + 600);
 
-                    $_SESSION['user_id']      = $user['user_id'];
-                    $_SESSION['name']         = $user['full_name'];
-                    $_SESSION['last_activity'] = time();
-                    // Fingerprint: store IP + UA hash to detect session hijacking
-                    $_SESSION['fingerprint']  = hash('sha256',
-                        ($_SERVER['REMOTE_ADDR'] ?? '') .
-                        ($_SERVER['HTTP_USER_AGENT'] ?? '')
+                    $s2fa = $conn->prepare("UPDATE users SET otp_code=?, otp_expiry=? WHERE user_id=?");
+                    $s2fa->bind_param("ssi", $otp_hash, $otp_expiry, $user['user_id']);
+                    $s2fa->execute();
+
+                    Mailer::send(
+                        $email,
+                        'Your Royal Matrix Login Code',
+                        Mailer::otpEmail($user['full_name'], $otp_plain)
                     );
 
-                    // Clear any previous failed attempts
+                    session_regenerate_id(true);
+                    $_SESSION['2fa_pending_user_id'] = $user['user_id'];
+                    $_SESSION['otp_last_sent']       = time();
+
                     clear_login_attempts($conn, $email);
 
-                    header("Location: dashboard.php");
+                    header("Location: verify_otp.php");
                     exit();
                 }
             } else {

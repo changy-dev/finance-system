@@ -155,6 +155,29 @@ class Mailer
         ");
     }
 
+
+    public static function otpEmail(string $name, string $otp_code): string
+    {
+        self::init();
+        return self::wrap("🔐 Your Login Verification Code", "
+            <p>Hi <strong>" . htmlspecialchars($name) . "</strong>,</p>
+            <p>Use the code below to complete your login. It expires in <strong>10 minutes</strong>.</p>
+            <div style='text-align:center;margin:28px 0;'>
+                <div style='display:inline-block;background:linear-gradient(135deg,#7c3aed,#06b6d4);
+                    border-radius:16px;padding:20px 36px;'>
+                    <div style='color:rgba(255,255,255,.7);font-size:11px;text-transform:uppercase;
+                        letter-spacing:.1em;margin-bottom:8px;'>Verification Code</div>
+                    <div style='font-size:38px;font-weight:900;color:#fff;letter-spacing:10px;
+                        font-family:monospace;'>" . $otp_code . "</div>
+                </div>
+            </div>
+            <p style='color:#64748b;font-size:13px;'>
+                ⚠️ Never share this code with anyone.<br>
+                If you did not attempt to log in, please <a href='" . self::$app_url . "/login.php' style='color:#7c3aed;'>secure your account immediately</a>.
+            </p>
+        ");
+    }
+
     // ── HTML email wrapper ─────────────────────────────────
     private static function wrap(string $title, string $content): string
     {

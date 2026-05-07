@@ -1,49 +1,61 @@
-<?php
-session_start();
-include 'db.php';
+-- ============================================================
+-- migration_new_features.sql
+-- Run this against your finance_db to support all new features
+-- ============================================================
 
-$error = "";
-if (isset($_POST['verify'])) {
-    $email = $_SESSION['temp_email'];
-    $user_otp = $_POST['otp'];
+-- ── 1. 2FA: Add otp_expiry column if not already present ────
+ALTER TABLE `users`
+    MODIFY COLUMN `otp_code` varchar(255) DEFAULT NULL  -- was varchar(10); now stores bcrypt hash
+    COMMENT '2FA OTP bcrypt hash';
 
-    $res = $conn->query("SELECT * FROM users WHERE email='$email' AND otp_code='$user_otp'");
-    
-    if ($res->num_rows > 0) {
-        // Activate the user
-        $conn->query("UPDATE users SET is_active=1, is_verified=1 WHERE email='$email'");
-        unset($_SESSION['temp_email']);
-        header("Location: login.php?msg=Verified Successfully!");
-    } else {
-        $error = "Invalid OTP Code. Please try again.";
-    }
-}
-?>
+ALTER TABLE `users`
+    ADD COLUMN IF NOT EXISTS `otp_expiry` datetime DEFAULT NULL
+    COMMENT '2FA OTP expiry timestamp';
 
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Verify Identity</title>
-    <style>
-        body { font-family: 'Inter', sans-serif; background: #f8fafc; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .card { background: white; padding: 40px; border-radius: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); text-align: center; max-width: 350px; }
-        .otp-input { width: 100%; font-size: 2em; text-align: center; letter-spacing: 10px; border: 2px solid #7c3aed; border-radius: 12px; padding: 10px; margin: 20px 0; }
-        .btn { background: #7c3aed; color: white; border: none; width: 100%; padding: 15px; border-radius: 12px; font-weight: bold; cursor: pointer; }
-    </style>
-</head>
-<body>
+-- ── 2. Activity / Audit log ──────────────────────────────────
+-- The audit_log table already exists in finance_db (5).sql
+-- If it is missing the user_agent column, add it:
+ALTER TABLE `audit_log`
+    ADD COLUMN IF NOT EXISTS `user_agent` varchar(512) DEFAULT NULL
+    AFTER `ip_address`;
 
-<div class="card">
-    <h2 style="margin:0;">Confirm it's you</h2>
-    <p style="color:#64748b;">We've sent a 6-digit code to your email.</p>
-    
-    <?php if($error) echo "<p style='color:red;'>$error</p>"; ?>
+-- Ensure the audit_logs table used by log_activity.php also exists
+CREATE TABLE IF NOT EXISTS `audit_logs` (
+  `id`          bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id`     int(11)    NOT NULL,
+  `action`      varchar(255) NOT NULL,
+  `ip_address`  varchar(45)  DEFAULT NULL,
+  `user_agent`  varchar(512) DEFAULT NULL,
+  `created_at`  timestamp    NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `user_id` (`user_id`),
+  KEY `created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-    <form method="POST">
-        <input type="text" name="otp" class="otp-input" maxlength="6" placeholder="000000" required>
-        <button type="submit" name="verify" class="btn">Verify Account</button>
-    </form>
-</div>
+-- ── 3. Dark mode ─────────────────────────────────────────────
+-- users.theme already exists ('dark'|'light'|'auto') — no schema change needed.
 
-</body>
-</html>
+-- ── 4. Reports / PDF export ──────────────────────────────────
+-- Uses existing transactions table — no schema change needed.
+
+-- ── 5. CSV Import ────────────────────────────────────────────
+-- Uses existing transactions table — no schema change needed.
+-- Audit log entry via audit_log table (already exists).
+
+-- ── 6. Ensure subscriptions exist for free users ─────────────
+-- Insert a default free subscription for any user who has none:
+INSERT IGNORE INTO `subscriptions` (user_id, plan_id, created_at)
+SELECT u.user_id, (SELECT plan_id FROM plans WHERE name='Free' LIMIT 1), NOW()
+FROM users u
+WHERE NOT EXISTS (
+    SELECT 1 FROM subscriptions s WHERE s.user_id = u.user_id
+);
+
+-- ── 7. Indexes for performance ───────────────────────────────
+ALTER TABLE `audit_log`
+    ADD INDEX IF NOT EXISTS `idx_user_created` (`user_id`, `created_at`);
+
+ALTER TABLE `transactions`
+    ADD INDEX IF NOT EXISTS `idx_user_date` (`user_id`, `date`);
+
+SELECT 'Migration complete ✅' AS status;
