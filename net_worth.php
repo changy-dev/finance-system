@@ -14,40 +14,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'add_asset') {
-        $name     = $conn->real_escape_string(trim($_POST['name'] ?? ''));
-        $category = $conn->real_escape_string($_POST['category'] ?? 'other');
+        $name     = trim($_POST['name'] ?? '');
+        $category = $_POST['category'] ?? 'other';
         $value    = (float) ($_POST['value'] ?? 0);
-        $note     = $conn->real_escape_string(trim($_POST['note'] ?? ''));
+        $note     = trim($_POST['note'] ?? '');
         if ($name && $value > 0) {
-            $conn->query("INSERT INTO assets (user_id, name, category, value, note, created_at)
-                          VALUES ($user_id, '$name', '$category', $value, '$note', NOW())");
+            $stmt = $conn->prepare("INSERT INTO assets (user_id, name, category, value, note, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+            $stmt->bind_param("issds", $user_id, $name, $category, $value, $note);
+            $stmt->execute();
         }
     } elseif ($action === 'delete_asset') {
         $id = (int) ($_POST['asset_id'] ?? 0);
-        $conn->query("DELETE FROM assets WHERE asset_id = $id AND user_id = $user_id");
+        $stmt = $conn->prepare("DELETE FROM assets WHERE asset_id = ? AND user_id = ?");
+        $stmt->bind_param("ii", $id, $user_id);
+        $stmt->execute();
     } elseif ($action === 'update_asset') {
         $id    = (int) ($_POST['asset_id'] ?? 0);
         $value = (float) ($_POST['value'] ?? 0);
-        $note  = $conn->real_escape_string(trim($_POST['note'] ?? ''));
+        $note  = trim($_POST['note'] ?? '');
         if ($id && $value > 0) {
-            $conn->query("UPDATE assets SET value = $value, note = '$note', updated_at = NOW()
-                          WHERE asset_id = $id AND user_id = $user_id");
+            $stmt = $conn->prepare("UPDATE assets SET value = ?, note = ?, updated_at = NOW() WHERE asset_id = ? AND user_id = ?");
+            $stmt->bind_param("dsii", $value, $note, $id, $user_id);
+            $stmt->execute();
         }
     } elseif ($action === 'snapshot') {
-        /* Save today's net worth snapshot */
+        /* Save today's net worth snapshot — uses correct column names */
         $today = date('Y-m-d');
-        $conn->query("INSERT INTO net_worth_snapshots (user_id, snapshot_date, total_assets, total_liabilities, net_worth)
-            SELECT $user_id, '$today',
-                COALESCE((SELECT SUM(value) FROM assets WHERE user_id = $user_id), 0) +
-                COALESCE((SELECT SUM(current_amount) FROM savings_goals WHERE user_id = $user_id), 0),
-                COALESCE((SELECT SUM(remaining_balance) FROM debts_loans WHERE user_id = $user_id AND status != 'paid'), 0),
-                (COALESCE((SELECT SUM(value) FROM assets WHERE user_id = $user_id), 0) +
-                 COALESCE((SELECT SUM(current_amount) FROM savings_goals WHERE user_id = $user_id), 0)) -
-                 COALESCE((SELECT SUM(remaining_balance) FROM debts_loans WHERE user_id = $user_id AND status != 'paid'), 0)
+        $stmt = $conn->prepare("
+            INSERT INTO net_worth_snapshots (user_id, snapshot_date, total_assets, total_liabilities, net_worth)
+            SELECT ?,  ?,
+                COALESCE((SELECT SUM(value) FROM assets WHERE user_id = ?), 0) +
+                COALESCE((SELECT SUM(current_saved) FROM savings_goals WHERE user_id = ?), 0),
+                COALESCE((SELECT SUM(principal - amount_paid) FROM debts_loans WHERE user_id = ? AND status != 'paid'), 0),
+                (COALESCE((SELECT SUM(value) FROM assets WHERE user_id = ?), 0) +
+                 COALESCE((SELECT SUM(current_saved) FROM savings_goals WHERE user_id = ?), 0)) -
+                 COALESCE((SELECT SUM(principal - amount_paid) FROM debts_loans WHERE user_id = ? AND status != 'paid'), 0)
             ON DUPLICATE KEY UPDATE
-                total_assets     = VALUES(total_assets),
-                total_liabilities= VALUES(total_liabilities),
-                net_worth        = VALUES(net_worth)");
+                total_assets      = VALUES(total_assets),
+                total_liabilities = VALUES(total_liabilities),
+                net_worth         = VALUES(net_worth)
+        ");
+        $stmt->bind_param("isiiiiii", $user_id, $today, $user_id, $user_id, $user_id, $user_id, $user_id, $user_id);
+        $stmt->execute();
     }
 
     header('Location: net_worth.php');
@@ -55,80 +63,83 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 /* ── FETCH ASSETS ── */
-$assets     = [];
-$totalAssets = 0;
+$assets           = [];
+$totalAssets      = 0;
 $assetsByCategory = [];
 
-$res = $conn->query("SELECT * FROM assets WHERE user_id = $user_id ORDER BY category, name");
-if ($res && $res->num_rows > 0) {
-    while ($row = $res->fetch_assoc()) {
-        $assets[] = $row;
-        $totalAssets += (float) $row['value'];
-        $cat = $row['category'];
-        $assetsByCategory[$cat] = ($assetsByCategory[$cat] ?? 0) + (float) $row['value'];
-    }
+$stmt = $conn->prepare("SELECT * FROM assets WHERE user_id = ? ORDER BY category, name");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+foreach ($rows as $row) {
+    $assets[]    = $row;
+    $totalAssets += (float) $row['value'];
+    $cat = $row['category'];
+    $assetsByCategory[$cat] = ($assetsByCategory[$cat] ?? 0) + (float) $row['value'];
 }
 
 /* ── FETCH SAVINGS GOALS (as assets) ── */
 $savingsTotal = 0;
 $savingsGoals = [];
-$sg = $conn->query("SELECT * FROM savings_goals WHERE user_id = $user_id ORDER BY goal_name");
-if ($sg && $sg->num_rows > 0) {
-    while ($row = $sg->fetch_assoc()) {
-        $savingsGoals[] = $row;
-        $savingsTotal  += (float) ($row['current_amount'] ?? 0);
-    }
+
+$stmt = $conn->prepare("SELECT * FROM savings_goals WHERE user_id = ? ORDER BY name");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+foreach ($rows as $row) {
+    $savingsGoals[] = $row;
+    $savingsTotal  += (float) ($row['current_saved'] ?? 0);
 }
 $totalAssets += $savingsTotal;
 if ($savingsTotal > 0) $assetsByCategory['savings'] = $savingsTotal;
 
 /* ── FETCH DEBTS/LOANS ── */
-$debts       = [];
-$totalDebts  = 0;
-$dl = $conn->query("SELECT * FROM debts_loans WHERE user_id = $user_id AND status != 'paid' ORDER BY lender_name");
-if ($dl && $dl->num_rows > 0) {
-    while ($row = $dl->fetch_assoc()) {
-        $debts[]     = $row;
-        $totalDebts += (float) ($row['remaining_balance'] ?? 0);
-    }
+$debts      = [];
+$totalDebts = 0;
+
+$stmt = $conn->prepare("SELECT * FROM debts_loans WHERE user_id = ? AND status != 'paid' ORDER BY counterparty");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+foreach ($rows as $row) {
+    $debts[]     = $row;
+    $totalDebts += (float) ($row['principal'] - $row['amount_paid']);
 }
 
 /* ── NET WORTH ── */
 $netWorth = $totalAssets - $totalDebts;
 
-/* ── SNAPSHOT HISTORY (last 12 months) ── */
+/* ── SNAPSHOT HISTORY (last 24 snapshots) ── */
 $snapDates  = [];
 $snapAssets = [];
 $snapDebt   = [];
 $snapNet    = [];
 
-$snaps = $conn->query("SELECT * FROM net_worth_snapshots
-    WHERE user_id = $user_id
-    ORDER BY snapshot_date ASC
-    LIMIT 24");
-if ($snaps && $snaps->num_rows > 0) {
-    while ($row = $snaps->fetch_assoc()) {
-        $snapDates[]  = date('M d', strtotime($row['snapshot_date']));
-        $snapAssets[] = (float) $row['total_assets'];
-        $snapDebt[]   = (float) $row['total_liabilities'];
-        $snapNet[]    = (float) $row['net_worth'];
-    }
+$stmt = $conn->prepare("SELECT * FROM net_worth_snapshots WHERE user_id = ? ORDER BY snapshot_date ASC LIMIT 24");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+foreach ($rows as $row) {
+    $snapDates[]  = date('M d', strtotime($row['snapshot_date']));
+    $snapAssets[] = (float) $row['total_assets'];
+    $snapDebt[]   = (float) $row['total_liabilities'];
+    $snapNet[]    = (float) $row['net_worth'];
 }
 
 /* ── CHANGE VS LAST SNAPSHOT ── */
-$prevNet    = count($snapNet) >= 2 ? $snapNet[count($snapNet) - 2] : null;
-$netChange  = $prevNet !== null ? $netWorth - $prevNet : null;
+$prevNet      = count($snapNet) >= 2 ? $snapNet[count($snapNet) - 2] : null;
+$netChange    = $prevNet !== null ? $netWorth - $prevNet : null;
 $netChangePct = ($prevNet && $prevNet != 0) ? round(($netChange / abs($prevNet)) * 100, 1) : null;
 
 /* ── ASSET CATEGORY META ── */
 $categoryMeta = [
-    'cash'        => ['label' => 'Cash & Bank',      'emoji' => '🏦', 'color' => '#10b981'],
-    'investment'  => ['label' => 'Investments',       'emoji' => '📈', 'color' => '#6366f1'],
-    'property'    => ['label' => 'Property',          'emoji' => '🏠', 'color' => '#f59e0b'],
-    'vehicle'     => ['label' => 'Vehicle',           'emoji' => '🚗', 'color' => '#0ea5e9'],
-    'electronics' => ['label' => 'Electronics',       'emoji' => '💻', 'color' => '#8b5cf6'],
-    'savings'     => ['label' => 'Savings Goals',     'emoji' => '🎯', 'color' => '#14b8a6'],
-    'other'       => ['label' => 'Other Assets',      'emoji' => '📦', 'color' => '#94a3b8'],
+    'cash'        => ['label' => 'Cash & Bank',   'emoji' => '🏦', 'color' => '#10b981'],
+    'investment'  => ['label' => 'Investments',    'emoji' => '📈', 'color' => '#6366f1'],
+    'property'    => ['label' => 'Property',       'emoji' => '🏠', 'color' => '#f59e0b'],
+    'vehicle'     => ['label' => 'Vehicle',        'emoji' => '🚗', 'color' => '#0ea5e9'],
+    'electronics' => ['label' => 'Electronics',    'emoji' => '💻', 'color' => '#8b5cf6'],
+    'savings'     => ['label' => 'Savings Goals',  'emoji' => '🎯', 'color' => '#14b8a6'],
+    'other'       => ['label' => 'Other Assets',   'emoji' => '📦', 'color' => '#94a3b8'],
 ];
 
 /* JSON for charts */
@@ -184,7 +195,7 @@ $jCatColors = json_encode(array_map(fn($k) => $categoryMeta[$k]['color'] ?? '#94
 body { font-family: 'DM Sans', sans-serif; background: var(--page); color: var(--ink); font-size: 14px; line-height: 1.5; }
 .layout { display: flex; min-height: 100vh; }
 
-/* ── SIDEBAR (same as dashboard) ── */
+/* ── SIDEBAR ── */
 .sidebar { width: var(--sidebar-w); flex-shrink: 0; background: var(--ink); position: fixed; top: 0; left: 0; height: 100vh; display: flex; flex-direction: column; z-index: 50; overflow: hidden; transition: width .25s cubic-bezier(.4,0,.2,1); }
 .sidebar.collapsed { width: var(--sidebar-collapsed); }
 .sidebar-brand { padding: 20px 14px 18px; border-bottom: 1px solid rgba(255,255,255,.07); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; min-height: 72px; }
@@ -701,19 +712,20 @@ body { font-family: 'DM Sans', sans-serif; background: var(--page); color: var(-
                         <?php if (count($debts) > 0): ?>
                         <div style="display:flex;flex-direction:column;gap:2px;">
                             <?php foreach ($debts as $d):
-                                $orig = (float)($d['original_amount'] ?? $d['remaining_balance']);
-                                $rem  = (float)($d['remaining_balance'] ?? 0);
-                                $paid = $orig > 0 ? max(0, min(100, round(($orig - $rem) / $orig * 100))) : 0;
-                                $rate = isset($d['interest_rate']) ? number_format((float)$d['interest_rate'],1).'%' : '';
+                                $principal = (float)($d['principal'] ?? 0);
+                                $paid      = (float)($d['amount_paid'] ?? 0);
+                                $rem       = $principal - $paid;
+                                $paidPct   = $principal > 0 ? max(0, min(100, round($paid / $principal * 100))) : 0;
+                                $rate      = isset($d['interest_rate']) ? number_format((float)$d['interest_rate'], 1).'%' : '';
                             ?>
                             <div class="debt-item">
                                 <div class="debt-icon">💳</div>
                                 <div class="debt-info">
-                                    <div class="debt-name"><?php echo htmlspecialchars($d['lender_name'] ?? 'Loan'); ?></div>
-                                    <div class="debt-meta"><?php echo htmlspecialchars($d['loan_type'] ?? 'Loan'); ?><?php echo $rate ? ' · '.$rate.' interest' : ''; ?></div>
+                                    <div class="debt-name"><?php echo htmlspecialchars($d['counterparty'] ?? 'Loan'); ?></div>
+                                    <div class="debt-meta"><?php echo htmlspecialchars($d['record_type'] ?? 'Loan'); ?><?php echo $rate ? ' · '.$rate.' interest' : ''; ?></div>
                                     <div class="debt-bar-wrap">
-                                        <div class="debt-bar-bg"><div class="debt-bar-fill" style="width:<?php echo $paid; ?>%"></div></div>
-                                        <div class="debt-bar-label"><span><?php echo $paid; ?>% paid</span><span>KES <?php echo number_format($rem); ?> left</span></div>
+                                        <div class="debt-bar-bg"><div class="debt-bar-fill" style="width:<?php echo $paidPct; ?>%"></div></div>
+                                        <div class="debt-bar-label"><span><?php echo $paidPct; ?>% paid</span><span>KES <?php echo number_format($rem); ?> left</span></div>
                                     </div>
                                 </div>
                                 <div class="debt-balance">-KES <?php echo number_format($rem); ?></div>
@@ -737,13 +749,13 @@ body { font-family: 'DM Sans', sans-serif; background: var(--page); color: var(-
                         <?php if (count($savingsGoals) > 0): ?>
                         <div class="goals-list">
                             <?php foreach ($savingsGoals as $g):
-                                $curr   = (float)($g['current_amount'] ?? 0);
+                                $curr   = (float)($g['current_saved'] ?? 0);
                                 $target = (float)($g['target_amount'] ?? 1);
                                 $pct    = $target > 0 ? min(100, round($curr / $target * 100)) : 0;
                             ?>
                             <div class="goal-item">
                                 <div class="goal-header">
-                                    <div class="goal-name"><?php echo htmlspecialchars($g['goal_name'] ?? 'Goal'); ?></div>
+                                    <div class="goal-name"><?php echo htmlspecialchars($g['name'] ?? 'Goal'); ?></div>
                                     <div class="goal-amounts">
                                         <span>KES <?php echo number_format($curr); ?></span> / KES <?php echo number_format($target); ?>
                                     </div>
