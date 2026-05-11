@@ -25,14 +25,24 @@ function csrf_verify(): void {
         http_response_code(403);
         die('CSRF token mismatch. Please refresh and try again.');
     }
+    // Regenerate token after successful verification to prevent replay attacks
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 function csrf_verify_json(): void {
     $token = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    
+    // Debug: Log token comparison (remove in production)
+    error_log("CSRF Debug - Session token: " . csrf_token());
+    error_log("CSRF Debug - Received token: " . ($token ?: 'NOT SET'));
+    
     if (!hash_equals(csrf_token(), $token)) {
         http_response_code(403);
         header('Content-Type: application/json');
         echo json_encode(['success' => false, 'message' => 'Security token mismatch. Please refresh and try again.']);
         exit;
     }
+    // Regenerate token after successful verification
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
+?>
