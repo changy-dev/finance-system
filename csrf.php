@@ -31,11 +31,7 @@ function csrf_verify(): void {
 
 function csrf_verify_json(): void {
     $token = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
-    
-    // Debug: Log token comparison (remove in production)
-    error_log("CSRF Debug - Session token: " . csrf_token());
-    error_log("CSRF Debug - Received token: " . ($token ?: 'NOT SET'));
-    
+
     if (!hash_equals(csrf_token(), $token)) {
         http_response_code(403);
         header('Content-Type: application/json');

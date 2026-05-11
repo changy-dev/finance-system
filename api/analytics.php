@@ -1,58 +1,66 @@
 <?php
-include '../db.php';
 session_start();
+require_once __DIR__ . '/../db.php';
 
-$user_id = $_SESSION['user_id'];
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Unauthorized']);
+    exit;
+}
+
+$user_id = (int)$_SESSION['user_id'];
 
 // totals
-$income = $conn->query("SELECT SUM(amount) t FROM transactions WHERE user_id=$user_id AND type='income'")->fetch_assoc()['t'] ?? 0;
-$expense = $conn->query("SELECT SUM(amount) t FROM transactions WHERE user_id=$user_id AND type='expense'")->fetch_assoc()['t'] ?? 0;
+$stmt = $conn->prepare("SELECT SUM(amount) t FROM transactions WHERE user_id=? AND type='income' AND is_deleted_by_user=0");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$income = (float)($stmt->get_result()->fetch_assoc()['t'] ?? 0);
+
+$stmt = $conn->prepare("SELECT SUM(amount) t FROM transactions WHERE user_id=? AND type='expense' AND is_deleted_by_user=0");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$expense = (float)($stmt->get_result()->fetch_assoc()['t'] ?? 0);
 
 $balance = $income - $expense;
 $savingsRate = $income ? round(($balance/$income)*100) : 0;
 
-// monthly
+// monthly expenses
 $months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 $monthly = [];
-
-for($i=1;$i<=12;$i++){
-    $res = $conn->query("
-        SELECT SUM(amount) t 
-        FROM transactions 
-        WHERE user_id=$user_id 
-        AND type='expense' 
-        AND MONTH(created_at)=$i
-    ")->fetch_assoc();
-
-    $monthly[] = $res['t'] ?? 0;
-}
+$stmt = $conn->prepare("SELECT MONTH(created_at) m, SUM(amount) t FROM transactions WHERE user_id=? AND type='expense' AND is_deleted_by_user=0 AND YEAR(created_at)=YEAR(CURDATE()) GROUP BY m");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$res = $stmt->get_result();
+$map = [];
+while ($r = $res->fetch_assoc()) $map[(int)$r['m']] = (float)$r['t'];
+foreach (range(1,12) as $i) $monthly[] = $map[$i] ?? 0;
 
 // categories
-$q = $conn->query("SELECT category, SUM(amount) total FROM transactions WHERE user_id=$user_id AND type='expense' GROUP BY category");
-
-$categories=[];
-$data=[];
-$topCategory="None";
-$max=0;
-
-while($row=$q->fetch_assoc()){
-    $categories[]=$row['category'];
-    $data[]=$row['total'];
-
-    if($row['total']>$max){
-        $max=$row['total'];
-        $topCategory=$row['category'];
+$stmt = $conn->prepare("SELECT category, SUM(amount) total FROM transactions WHERE user_id=? AND type='expense' AND is_deleted_by_user=0 GROUP BY category ORDER BY total DESC");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$res = $stmt->get_result();
+$categories = [];
+$data = [];
+$topCategory = "None";
+$max = 0;
+while ($row = $res->fetch_assoc()) {
+    $categories[] = $row['category'];
+    $data[] = (float)$row['total'];
+    if ($row['total'] > $max) {
+        $max = $row['total'];
+        $topCategory = $row['category'];
     }
 }
 
 echo json_encode([
-    "income"=>$income,
-    "expense"=>$expense,
-    "balance"=>$balance,
-    "savingsRate"=>$savingsRate,
-    "months"=>$months,
-    "monthly"=>$monthly,
-    "categories"=>$categories,
-    "categoryData"=>$data,
-    "topCategory"=>$topCategory
+    "income"      => $income,
+    "expense"     => $expense,
+    "balance"     => $balance,
+    "savingsRate" => $savingsRate,
+    "months"      => $months,
+    "monthly"     => $monthly,
+    "categories"  => $categories,
+    "categoryData"=> $data,
+    "topCategory" => $topCategory
 ]);

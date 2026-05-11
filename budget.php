@@ -1,6 +1,7 @@
 <?php
 session_start();
 include 'db.php';
+require_once 'csrf.php';
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
@@ -29,10 +30,16 @@ $categoryEmojis = [
 /* ── FETCH EXISTING BUDGETS ── */
 // Expects a `budgets` table: (budget_id INT PK AI, user_id INT, category VARCHAR, amount DECIMAL, created_at TIMESTAMP)
 $budgets = [];
-$bRes = $conn->query("SELECT category, amount_limit AS amount FROM budgets WHERE user_id = $user_id");
+$bRes = $conn->query("SELECT category, amount_limit AS amount, daily_limit, monthly_limit, yearly_limit FROM budgets WHERE user_id = $user_id");
+$dailyLimits   = [];
+$monthlyLimits = [];
+$yearlyLimits  = [];
 if ($bRes && $bRes->num_rows > 0) {
     while ($row = $bRes->fetch_assoc()) {
         $budgets[$row['category']] = (float) $row['amount'];
+        if ($row['daily_limit']   !== null) $dailyLimits[$row['category']]   = (float)$row['daily_limit'];
+        if ($row['monthly_limit'] !== null) $monthlyLimits[$row['category']] = (float)$row['monthly_limit'];
+        if ($row['yearly_limit']  !== null) $yearlyLimits[$row['category']]  = (float)$row['yearly_limit'];
     }
 }
 
@@ -260,6 +267,19 @@ body { font-family: 'DM Sans', sans-serif; background: var(--page); color: var(-
 .toast.success::before { content: '✓'; background: var(--green); width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
 .toast.error::before   { content: '!'; background: var(--red);   width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
 
+/* ── PERIOD LIMITS ── */
+.period-tab { background: var(--line-2); border: 1px solid var(--line); color: var(--ink-2); font-size: 12px; font-weight: 500; padding: 5px 14px; border-radius: 6px; cursor: pointer; transition: all .15s; }
+.period-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.period-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.period-cat-lbl { font-size: 13px; color: var(--ink-2); min-width: 110px; }
+.period-input-group { display: flex; align-items: center; gap: 4px; }
+
+/* ── OVER-BUDGET ALERT CARD ── */
+.ob-alert { background: #fff; border: 1.5px solid var(--red); border-radius: 10px; padding: 12px 16px; box-shadow: 0 4px 18px rgba(244,63,94,.15); animation: slideUp .25s ease; }
+.ob-alert-title { font-size: 13px; font-weight: 600; color: var(--red); margin-bottom: 4px; }
+.ob-alert-body  { font-size: 12px; color: var(--ink-2); line-height: 1.5; }
+.ob-alert-close { float: right; background: none; border: none; cursor: pointer; font-size: 16px; color: var(--ink-3); line-height: 1; margin-left: 8px; }
+
 /* ── ANIMATIONS ── */
 @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
@@ -349,6 +369,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--page); color: var(-
             </div>
             <div class="topbar-right">
                 <span class="topbar-month"><?php echo $monthLabel; ?></span>
+                <input type="hidden" id="csrf_token_budget" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
                 <button class="btn btn-primary" onclick="saveAll()">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                     Save Budgets
@@ -575,33 +596,99 @@ body { font-family: 'DM Sans', sans-serif; background: var(--page); color: var(-
                         <?php endif; ?>
                     </div>
 
-                    <!-- Tips -->
-                    <div class="card anim">
-                        <div class="card-hd">
-                            <div class="card-title">💡 Budget Tips</div>
-                        </div>
-                        <div class="tips">
-                            <div class="tip-item">
-                                <div class="tip-icon">📐</div>
-                                <div class="tip-text"><strong>50/30/20 Rule</strong> — Put 50% of income to needs, 30% to wants, and 20% to savings.</div>
-                            </div>
-                            <div class="tip-item">
-                                <div class="tip-icon">⚡</div>
-                                <div class="tip-text"><strong>80% Warning</strong> — Categories shown in amber have used over 80% of their limit.</div>
-                            </div>
-                            <div class="tip-item">
-                                <div class="tip-icon">🔄</div>
-                                <div class="tip-text"><strong>Monthly Reset</strong> — Budgets reset each month but your limits carry forward automatically.</div>
-                            </div>
-                        </div>
-                    </div>
-
                 </div>
             </div>
 
-        </div><!-- /content -->
+            <!-- ══ PERIOD LIMITS — Full-width section below the grid ══ -->
+            <div class="card anim" style="margin-top:20px;border:2px solid var(--accent);box-shadow:0 0 0 4px rgba(99,102,241,.07);">
+                <div class="card-hd" style="padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:4px;">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <div style="width:36px;height:36px;background:var(--accent);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">⏱</div>
+                        <div>
+                            <div class="card-title" style="font-size:15px;">Spending Period Limits</div>
+                            <div class="card-sub">Cap how much you spend daily, monthly or yearly per category — saved with your budgets</div>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                        <button class="period-tab active" data-period="daily"   onclick="switchPeriodTab('daily')">Daily</button>
+                        <button class="period-tab"        data-period="monthly" onclick="switchPeriodTab('monthly')">Monthly</button>
+                        <button class="period-tab"        data-period="yearly"  onclick="switchPeriodTab('yearly')">Yearly</button>
+                    </div>
+                </div>
+                <div id="period-inputs" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;padding-top:10px;">
+                <?php foreach ($expenseCategories as $cat):
+                    $emoji  = $categoryEmojis[$cat] ?? '📦';
+                    $bg     = $bgColors[$cat] ?? '#f8fafc';
+                    $color  = $colors[$cat]   ?? '#6366f1';
+                ?>
+                    <div class="period-row" style="background:var(--surface-2,#f9fafb);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px;">
+                        <div style="width:32px;height:32px;background:<?php echo $bg; ?>;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;"><?php echo $emoji; ?></div>
+                        <span class="period-cat-lbl" style="font-size:13px;font-weight:500;min-width:90px;color:var(--ink);"><?php echo $cat; ?></span>
+                        <div class="period-input-group" style="flex:1;">
+                            <span class="currency" style="font-size:11px;color:var(--ink-3);">KES</span>
+                            <input type="number" class="budget-input period-limit-input"
+                                id="daily-<?php echo $cat; ?>"
+                                data-period="daily"
+                                data-category="<?php echo $cat; ?>"
+                                value="<?php echo isset($dailyLimits[$cat]) ? (int)$dailyLimits[$cat] : ''; ?>"
+                                placeholder="No limit"
+                                min="0" step="50"
+                                style="font-size:13px;padding:6px 8px;width:100%;">
+                            <input type="number" class="budget-input period-limit-input"
+                                id="monthly-<?php echo $cat; ?>"
+                                data-period="monthly"
+                                data-category="<?php echo $cat; ?>"
+                                value="<?php echo isset($monthlyLimits[$cat]) ? (int)$monthlyLimits[$cat] : ''; ?>"
+                                placeholder="No limit"
+                                min="0" step="100"
+                                style="font-size:13px;padding:6px 8px;width:100%;display:none;">
+                            <input type="number" class="budget-input period-limit-input"
+                                id="yearly-<?php echo $cat; ?>"
+                                data-period="yearly"
+                                data-category="<?php echo $cat; ?>"
+                                value="<?php echo isset($yearlyLimits[$cat]) ? (int)$yearlyLimits[$cat] : ''; ?>"
+                                placeholder="No limit"
+                                min="0" step="500"
+                                style="font-size:13px;padding:6px 8px;width:100%;display:none;">
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px solid var(--line);">
+                    <p style="font-size:12px;color:var(--ink-3);margin:0;">💾 Period limits are saved together with your budgets when you click <strong>Save Budgets</strong>.</p>
+                    <button class="btn btn-primary" onclick="saveAll()" style="flex-shrink:0;">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        Save Budgets
+                    </button>
+                </div>
+            </div>
+
+            <!-- ══ BUDGET TIPS — below period limits ══ -->
+            <div class="card anim" style="margin-top:16px;">
+                <div class="card-hd">
+                    <div class="card-title">💡 Budget Tips</div>
+                </div>
+                <div class="tips">
+                    <div class="tip-item">
+                        <div class="tip-icon">📐</div>
+                        <div class="tip-text"><strong>50/30/20 Rule</strong> — Put 50% of income to needs, 30% to wants, and 20% to savings.</div>
+                    </div>
+                    <div class="tip-item">
+                        <div class="tip-icon">⚡</div>
+                        <div class="tip-text"><strong>80% Warning</strong> — Categories shown in amber have used over 80% of their limit.</div>
+                    </div>
+                    <div class="tip-item">
+                        <div class="tip-icon">🔄</div>
+                        <div class="tip-text"><strong>Monthly Reset</strong> — Budgets reset each month but your limits carry forward automatically.</div>
+                    </div>
+                </div>
+            </div>
+
     </div><!-- /main -->
 </div><!-- /layout -->
+
+<!-- ══ OVER-BUDGET NOTIFICATION BANNER ══ -->
+<div id="overBudgetBanner" style="display:none;position:fixed;top:16px;right:16px;z-index:9999;max-width:400px;display:none;flex-direction:column;gap:8px;"></div>
 
 
 <script>
@@ -675,19 +762,45 @@ function resetAll() {
 /* ── SAVE ALL ── */
 function saveAll() {
     const budgets = {};
+    const daily   = {};
+    const monthly = {};
+    const yearly  = {};
+
     categories.forEach(cat => {
         const v = parseFloat(document.getElementById('input-' + cat)?.value) || 0;
         budgets[cat] = v;
+
+        const dEl = document.getElementById('daily-'   + cat);
+        const mEl = document.getElementById('monthly-' + cat);
+        const yEl = document.getElementById('yearly-'  + cat);
+        if (dEl && dEl.value !== '') daily[cat]   = parseFloat(dEl.value) || 0;
+        if (mEl && mEl.value !== '') monthly[cat] = parseFloat(mEl.value) || 0;
+        if (yEl && yEl.value !== '') yearly[cat]  = parseFloat(yEl.value) || 0;
     });
 
     const fd = new FormData();
-    fd.append('budgets', JSON.stringify(budgets));
+    fd.append('budgets',        JSON.stringify(budgets));
+    fd.append('daily_limits',   JSON.stringify(daily));
+    fd.append('monthly_limits', JSON.stringify(monthly));
+    fd.append('yearly_limits',  JSON.stringify(yearly));
+    const csrfInput = document.getElementById('csrf_token_budget');
+    if (csrfInput) fd.append('csrf_token', csrfInput.value);
 
     fetch('save_budget.php', { method: 'POST', body: fd })
         .then(r => r.json())
         .then(d => {
-            if (d.success) showToast('Budgets saved successfully!', 'success');
-            else           showToast(d.message || 'Save failed', 'error');
+            // Refresh CSRF token from response so next save works without reload
+            if (d.csrf_token) {
+                const el = document.getElementById('csrf_token_budget');
+                if (el) el.value = d.csrf_token;
+            }
+            if (d.success) {
+                showToast('Budgets saved successfully!', 'success');
+                // Re-check alerts after saving new limits
+                setTimeout(checkPeriodAlerts, 600);
+            } else {
+                showToast(d.message || 'Save failed', 'error');
+            }
         })
         .catch(() => showToast('Network error — try again', 'error'));
 }
@@ -753,6 +866,61 @@ function showToast(msg, type = 'success') {
     });
 })();
 <?php endif; ?>
+
+/* ── PERIOD TAB SWITCHER ── */
+let activePeriod = 'daily';
+function switchPeriodTab(period) {
+    activePeriod = period;
+    document.querySelectorAll('.period-tab').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.period === period);
+    });
+    categories.forEach(cat => {
+        ['daily','monthly','yearly'].forEach(p => {
+            const el = document.getElementById(p + '-' + cat);
+            if (el) el.style.display = (p === period) ? 'block' : 'none';
+        });
+    });
+}
+
+/* ── OVER-BUDGET PERIOD ALERTS ── */
+const shownAlerts = new Set();
+
+function checkPeriodAlerts() {
+    fetch('check_budget_period_alerts.php')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.alerts || data.alerts.length === 0) return;
+            const banner = document.getElementById('overBudgetBanner');
+            banner.style.display = 'flex';
+
+            data.alerts.forEach(a => {
+                const key = a.category + ':' + a.period_type;
+                if (shownAlerts.has(key)) return;
+                shownAlerts.add(key);
+
+                const fmt = n => 'KES ' + Math.round(n).toLocaleString('en-KE');
+                const card = document.createElement('div');
+                card.className = 'ob-alert';
+                card.innerHTML = `
+                    <button class="ob-alert-close" onclick="this.closest('.ob-alert').remove()">✕</button>
+                    <div class="ob-alert-title">⚠ Over ${a.period_label} budget — ${a.category}</div>
+                    <div class="ob-alert-body">
+                        You spent <strong>${fmt(a.spent)}</strong> against a ${a.period_type} limit of
+                        <strong>${fmt(a.limit)}</strong>.<br>
+                        That's <strong>${fmt(a.over_by)} (${a.pct}%)</strong> over your limit.
+                    </div>`;
+                banner.appendChild(card);
+
+                // Auto-dismiss after 12 s
+                setTimeout(() => card.remove(), 12000);
+            });
+        })
+        .catch(() => {}); // silent fail — non-critical
+}
+
+// Check on page load and every 5 minutes
+checkPeriodAlerts();
+setInterval(checkPeriodAlerts, 300000);
 </script>
 </body>
 </html>

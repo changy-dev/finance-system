@@ -1,5 +1,9 @@
 <?php
-
+// ============================================================
+// check_budget_alerts.php — In-app budget alert checker
+// Writes to budget_alerts table so notifications show in-app.
+// Email/mailer removed.
+// ============================================================
 
 if (php_sapi_name() !== 'cli') {
     $ip = $_SERVER['REMOTE_ADDR'] ?? '';
@@ -9,25 +13,19 @@ if (php_sapi_name() !== 'cli') {
 }
 
 require_once __DIR__ . '/db.php';
-require_once __DIR__ . '/mailer.php';
 
-$sent_count = 0;
+$alert_count = 0;
 
 $stmt = $conn->prepare("
     SELECT
         b.budget_id, b.user_id, b.category,
         b.amount_limit, b.current_spent,
-        u.full_name, u.email,
-        COALESCE(p.has_alerts, 0) AS has_alerts,
         COALESCE(ba.threshold, 80) AS threshold,
         ba.sent_at
     FROM budgets b
     JOIN users u ON u.user_id = b.user_id
-    LEFT JOIN subscriptions s ON s.user_id = b.user_id
-    LEFT JOIN plans p ON p.plan_id = s.plan_id
     LEFT JOIN budget_alerts ba ON ba.budget_id = b.budget_id AND ba.user_id = b.user_id
     WHERE b.amount_limit > 0
-      AND COALESCE(p.has_alerts, 0) = 1
       AND COALESCE(ba.is_active, 1) = 1
 ");
 $stmt->execute();
@@ -39,21 +37,13 @@ foreach ($budgets as $budget) {
     $pct       = $limit > 0 ? (int)round($spent / $limit * 100) : 0;
     $threshold = (int)$budget['threshold'];
 
-    
+    // Only alert if threshold crossed
     if ($pct < $threshold) continue;
 
-    
+    // Don't re-alert within 24 hours
     if ($budget['sent_at'] && (time() - strtotime($budget['sent_at'])) < 86400) continue;
 
-    
-    $html    = Mailer::budgetAlert($budget['full_name'], $budget['category'], $spent, $limit, $pct);
-    $subject = $pct >= 100
-        ? "🚨 Budget Exceeded: {$budget['category']}"
-        : "⚠️ Budget Alert: {$budget['category']} at {$pct}%";
-
-    Mailer::queue($conn, $budget['email'], $subject, $html, $budget['user_id']);
-
-    
+    // Write alert to DB — this is what the in-app notification reads
     $upsert = $conn->prepare("
         INSERT INTO budget_alerts (user_id, budget_id, threshold, sent_at)
         VALUES (?, ?, ?, NOW())
@@ -62,9 +52,7 @@ foreach ($budgets as $budget) {
     $upsert->bind_param("iii", $budget['user_id'], $budget['budget_id'], $threshold);
     $upsert->execute();
 
-    $sent_count++;
+    $alert_count++;
 }
 
-
-$results = Mailer::processQueue($conn);
-echo "Alerts queued: {$sent_count}. Emails sent: {$results['sent']}, failed: {$results['failed']}.\n";
+echo "Budget alerts updated: {$alert_count}.\n";

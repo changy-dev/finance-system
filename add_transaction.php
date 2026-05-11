@@ -1,10 +1,7 @@
 <?php
 error_reporting(E_ALL);
-ini_set('display_errors', 0);   // don't break JSON responses
+ini_set('display_errors', 0);
 ini_set('log_errors', 1);
-// ==========================================
-// 1. SESSION & SECURITY HEADERS (MUST BE FIRST)
-// ==========================================
 session_start();
 include 'db.php';
 require_once 'csrf.php';
@@ -13,38 +10,33 @@ require_once 'csrf.php';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
 
-    // Auth Check
     if (!isset($_SESSION['user_id'])) {
         echo json_encode(['success' => false, 'message' => 'Not authenticated']);
         exit;
     }
 
-    // Debug CSRF token (place this BEFORE csrf_verify_json)
-error_log("POST data: " . print_r($_POST, true));
-error_log("Session token: " . ($_SESSION['csrf_token'] ?? 'NOT SET'));
-error_log("Posted token: " . ($_POST['csrf_token'] ?? 'NOT SET'));
+    require_once __DIR__ . '/csrf.php'; // already required at top; safe to call again
+    csrf_verify_json();
 
-// CSRF Verification
-csrf_verify_json();
-<!-- After <?php echo csrf_field(); ?> add: -->
-<!-- Debug: token = <?php echo csrf_token(); ?> -->
+    function csrf_json_exit(array $payload): void {
+        $payload['csrf_token'] = $_SESSION['csrf_token'] ?? '';
+        echo json_encode($payload);
+        exit;
+    }
+
     $user_id = (int) $_SESSION['user_id'];
 
-    // Collect & Validate Inputs
     $type        = trim($_POST['type']        ?? '');
     $category    = trim($_POST['category']    ?? '');
     $amount      = $_POST['amount']           ?? '';
     $description = trim($_POST['description'] ?? '');
     $created_at  = trim($_POST['created_at']  ?? '');
 
-    // Validate type
     $allowed_types = ['expense', 'income'];
     if (!in_array($type, $allowed_types, true)) {
-        echo json_encode(['success' => false, 'message' => 'Invalid transaction type']);
-        exit;
+        csrf_json_exit(['success' => false, 'message' => 'Invalid transaction type']);
     }
 
-    // Validate category
     $allowed_categories = [
         'Groceries', 'Household Supplies', 'Eating Out',
         'Fuel & Charging', 'Vehicle Maintenance', 'Commuting',
@@ -56,53 +48,47 @@ csrf_verify_json();
         'Salary', 'Business', 'Investments', 'Shares', 'Freelance', 'Family', 'Rental', 'Gift', 'Other Income',
     ];
     if (!in_array($category, $allowed_categories, true)) {
-        echo json_encode(['success' => false, 'message' => 'Invalid category: ' . htmlspecialchars($category)]);
-        exit;
+        csrf_json_exit(['success' => false, 'message' => 'Invalid category: ' . htmlspecialchars($category)]);
     }
 
-    // Validate amount
     $amount = floatval($amount);
     if ($amount <= 0) {
-        echo json_encode(['success' => false, 'message' => 'Amount must be greater than 0']);
-        exit;
+        csrf_json_exit(['success' => false, 'message' => 'Amount must be greater than 0']);
     }
 
-    // Validate date
     if (empty($created_at) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $created_at)) {
         $created_at = date('Y-m-d');
     }
 
-    // Sanitise description
-    $description = htmlspecialchars($description, ENT_QUOTES, 'UTF-8');
+    // Do NOT htmlspecialchars here — the DB should store raw text.
+    // Output escaping happens at render time (in HTML templates).
+    // Storing HTML-encoded text causes double-encoding when displayed.
 
-    // Insert into Database
     $stmt = $conn->prepare(
         "INSERT INTO transactions (user_id, type, category, amount, description, created_at)
          VALUES (?, ?, ?, ?, ?, ?)"
     );
 
     if (!$stmt) {
-        echo json_encode(['success' => false, 'message' => 'Database prepare failed: ' . $conn->error]);
-        exit;
+        csrf_json_exit(['success' => false, 'message' => 'Database prepare failed: ' . $conn->error]);
     }
 
     $stmt->bind_param('issdss', $user_id, $type, $category, $amount, $description, $created_at);
 
     if ($stmt->execute()) {
-        echo json_encode([
+        csrf_json_exit([
             'success' => true,
             'message' => 'Transaction saved successfully!',
             'id'      => $stmt->insert_id,
         ]);
     } else {
-        echo json_encode(['success' => false, 'message' => 'Insert failed: ' . $stmt->error]);
+        csrf_json_exit(['success' => false, 'message' => 'Insert failed: ' . $stmt->error]);
     }
 
     $stmt->close();
-    exit; // Stop executing so we don't render HTML on an AJAX request
+    exit;
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -123,15 +109,11 @@ csrf_verify_json();
     </style>
 </head>
 <body>
-
 <div class="form-container">
     <h2>Add Transaction</h2>
-    
     <div id="alertBox" class="alert"></div>
-
     <form id="transactionForm">
         <?php echo csrf_field(); ?>
-
         <div class="form-group">
             <label for="type">Transaction Type</label>
             <select name="type" id="type" required>
@@ -139,7 +121,6 @@ csrf_verify_json();
                 <option value="income">Income</option>
             </select>
         </div>
-
         <div class="form-group">
             <label for="category">Category</label>
             <select name="category" id="category" required>
@@ -165,35 +146,27 @@ csrf_verify_json();
                 </optgroup>
             </select>
         </div>
-
         <div class="form-group">
             <label for="amount">Amount ($)</label>
             <input type="number" step="0.01" name="amount" id="amount" placeholder="0.00" required>
         </div>
-
         <div class="form-group">
             <label for="created_at">Date</label>
             <input type="date" name="created_at" id="created_at" value="<?php echo date('Y-m-d'); ?>">
         </div>
-
         <div class="form-group">
             <label for="description">Description</label>
             <textarea name="description" id="description" rows="3" placeholder="Notes..."></textarea>
         </div>
-
         <button type="submit">Save Transaction</button>
     </form>
 </div>
-
 <script>
 document.getElementById('transactionForm').addEventListener('submit', function(e) {
     e.preventDefault();
-
     const alertBox = document.getElementById('alertBox');
     alertBox.style.display = 'none';
-
     const formData = new FormData(this);
-
     fetch('add_transaction.php', {
         method: 'POST',
         body: formData
@@ -204,41 +177,24 @@ document.getElementById('transactionForm').addEventListener('submit', function(e
             alertBox.className = 'alert alert-success';
             alertBox.textContent = data.message;
             alertBox.style.display = 'block';
-            
-            // Reset form
             this.reset();
             document.getElementById('created_at').value = new Date().toISOString().split('T')[0];
-            
-            // IMPORTANT: Refresh the CSRF token in the form for the next submission
-            // You can either reload the page or fetch a new token
-            fetch('get_csrf_token.php')
-                .then(res => res.json())
-                .then(tokenData => {
-                    document.querySelector('input[name="csrf_token"]').value = tokenData.token;
-                })
-                .catch(() => {
-                    // If can't fetch, reload the page
-                    setTimeout(() => location.reload(), 1500);
-                });
         } else {
             alertBox.className = 'alert alert-danger';
             alertBox.textContent = data.message;
             alertBox.style.display = 'block';
-            
-            // If CSRF error, reload the page to get a fresh token
-            if (data.message.includes('token mismatch')) {
-                setTimeout(() => location.reload(), 2000);
-            }
+        }
+        if (data.csrf_token) {
+            const el = document.querySelector('input[name="csrf_token"]');
+            if (el) el.value = data.csrf_token;
         }
     })
     .catch(error => {
         alertBox.className = 'alert alert-danger';
         alertBox.textContent = 'Error: ' + error.message;
         alertBox.style.display = 'block';
-        console.error('Submission error:', error);
     });
 });
 </script>
-
 </body>
 </html>

@@ -723,6 +723,11 @@ body { font-family: 'DM Sans', sans-serif; background: var(--page); color: var(-
         </div>
 
         <form id="txForm">
+            <?php
+            // Ensure csrf.php is loaded (dashboard.php doesn't include it directly)
+            if (!function_exists('csrf_token')) { require_once __DIR__ . '/csrf.php'; }
+            echo csrf_field();
+            ?>
             <div class="field">
                 <label>Type</label>
                 <div class="type-toggle">
@@ -907,6 +912,11 @@ document.getElementById('txForm').addEventListener('submit', function(e) {
                 closeModal();
                 this.reset();
                 setType('expense'); // reset type toggle visually
+                // Refresh CSRF token so the form can be used again without reload
+                if (d.csrf_token) {
+                    const csrfEl = document.querySelector('#txForm input[name="csrf_token"]');
+                    if (csrfEl) csrfEl.value = d.csrf_token;
+                }
                 setTimeout(() => location.reload(), 1200);
             } else {
                 showToast(d.message || 'Error saving transaction', 'error');
