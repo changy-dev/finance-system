@@ -1,0 +1,7 @@
+.env
+uploads/
+*.log
+
+# OS junk
+.DS_Store
+Thumbs.db
