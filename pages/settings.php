@@ -1,8 +1,8 @@
 <?php
 session_start();
-include 'db.php';
+include '../core/db.php';
 
-if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit(); }
+if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit(); }
 
 $user_id = (int) $_SESSION['user_id'];
 $user = $conn->query("SELECT * FROM users WHERE user_id=$user_id")->fetch_assoc();
@@ -239,6 +239,7 @@ body { font-family: var(--font-sans); background: var(--bg); color: var(--text);
   .theme-grid { grid-template-columns: 1fr 1fr; }
   .stats-row { grid-template-columns: 1fr; }
 }
+<link rel="stylesheet" href="../assets/fintrack-theme.css">
 </style>
 </head>
 <body>
@@ -253,7 +254,7 @@ body { font-family: var(--font-sans); background: var(--bg); color: var(--text);
   <div class="nav-item" onclick="switchPanel('notifications', this)"><div class="icon">🔔</div> Notifications</div>
   <div class="nav-section-label">System</div>
   <div class="nav-item" onclick="switchPanel('danger', this)"><div class="icon">⚠️</div> Danger Zone</div>
-  <a href="dashboard.php" class="nav-back">← Back to Dashboard</a>
+  <a href="../pages/dashboard.php" class="nav-back">← Back to Dashboard</a>
 </nav>
 
 <main class="main">
@@ -465,7 +466,7 @@ function saveProfile() {
   fd.append('status_message', document.getElementById('bio').value);
   const file = document.getElementById('avatarInput').files[0];
   if (file) fd.append('profile_pic', file);
-  fetch('settings.php', { method: 'POST', body: fd })
+  fetch('../pages/settings.php', { method: 'POST', body: fd })
     .then(r => r.json())
     .then(d => {
       if (d.status === 'ok') {
@@ -515,7 +516,7 @@ function savePassword() {
   const fd = new FormData();
   fd.append('ajax', 1); fd.append('action', 'password');
   fd.append('current_password', current); fd.append('new_password', newp); fd.append('confirm_password', confirm);
-  fetch('settings.php', { method: 'POST', body: fd })
+  fetch('../pages/settings.php', { method: 'POST', body: fd })
     .then(r => r.json())
     .then(d => {
       if (d.status === 'ok') { showToast('Password updated successfully'); ['currentPass','newPass','confirmPass'].forEach(id => document.getElementById(id).value=''); checkStrength(''); }
@@ -540,7 +541,7 @@ function selectLang(lang, el) {
   const fd = new FormData();
   fd.append('ajax', 1); fd.append('action', 'appearance');
   fd.append('theme', selectedTheme); fd.append('language', lang);
-  fetch('settings.php', { method: 'POST', body: fd })
+  fetch('../pages/settings.php', { method: 'POST', body: fd })
     .then(r => r.json())
     .then(d => {
       if (d.status === 'ok') {
@@ -556,7 +557,7 @@ function saveAppearance() {
   const fd = new FormData();
   fd.append('ajax', 1); fd.append('action', 'appearance');
   fd.append('theme', selectedTheme); fd.append('language', selectedLang);
-  fetch('settings.php', { method: 'POST', body: fd })
+  fetch('../pages/settings.php', { method: 'POST', body: fd })
     .then(r => r.json())
     .then(d => {
       if (d.status === 'ok') {

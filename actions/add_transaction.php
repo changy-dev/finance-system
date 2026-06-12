@@ -3,8 +3,8 @@ error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 session_start();
-include 'db.php';
-require_once 'csrf.php';
+include __DIR__ . '/../core/db.php';
+require_once __DIR__ . '/../core/csrf.php';
 
 // If this is an AJAX POST request, return JSON
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -15,7 +15,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    require_once __DIR__ . '/csrf.php'; // already required at top; safe to call again
     csrf_verify_json();
 
     function csrf_json_exit(array $payload): void {

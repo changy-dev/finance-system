@@ -1,11 +1,6 @@
 <?php
-// ============================================================
-// CRITICAL FIX #2: No more hardcoded credentials
-// Loads from .env file — root/empty password removed
-// ============================================================
-
 // Load .env file
-$env_path = __DIR__ . '/.env';
+$env_path = __DIR__ . '/../.env';
 if (file_exists($env_path)) {
     $lines = file($env_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
     foreach ($lines as $line) {
@@ -24,11 +19,8 @@ $pass = $_ENV['DB_PASS'] ?? '';
 $conn = new mysqli($host, $user, $pass, $db);
 
 if ($conn->connect_error) {
-    // NEVER expose raw DB errors to users in production
-    error_log("DB connection failed: " . $conn->connect_error);
-    die("Service temporarily unavailable. Please try again later.");
+    die('DB connection failed: ' . $conn->connect_error);
 }
 
-// Force UTF-8 charset
 $conn->set_charset('utf8mb4');
 ?>

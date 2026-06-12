@@ -42,14 +42,6 @@ $collapsed    = isset($_COOKIE['sidebar_collapsed']) && $_COOKIE['sidebar_collap
             <span class="nav-badge">Live</span>
         </a>
 
-        <a href="net_worth.php" class="nav-item <?= $current_page === 'net_worth.php' ? 'active' : '' ?>">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-            </svg>
-            <span class="nav-label">Net Worth</span>
-        </a>
-
         <div class="nav-section-label">Money</div>
 
         <a href="transactions.php" class="nav-item <?= $current_page === 'transactions.php' ? 'active' : '' ?>">
@@ -60,62 +52,12 @@ $collapsed    = isset($_COOKIE['sidebar_collapsed']) && $_COOKIE['sidebar_collap
             <span class="nav-label">Transactions</span>
         </a>
 
-        <a href="recurring_transaction.php" class="nav-item <?= $current_page === 'recurring_transaction.php' ? 'active' : '' ?>">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-            </svg>
-            <span class="nav-label">Recurring</span>
-        </a>
-
         <a href="budget.php" class="nav-item <?= $current_page === 'budget.php' ? 'active' : '' ?>">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
             </svg>
             <span class="nav-label">Budget</span>
-        </a>
-
-        <a href="savings_goals.php" class="nav-item <?= $current_page === 'savings_goals.php' ? 'active' : '' ?>">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
-            </svg>
-            <span class="nav-label">Savings Goals</span>
-        </a>
-
-        <a href="debts_loans.php" class="nav-item <?= $current_page === 'debts_loans.php' ? 'active' : '' ?>">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
-            </svg>
-            <span class="nav-label">Debts & Loans</span>
-        </a>
-
-        <div class="nav-section-label">Tools</div>
-
-        <a href="health_score.php" class="nav-item <?= $current_page === 'health_score.php' ? 'active' : '' ?>">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
-            </svg>
-            <span class="nav-label">Health Score</span>
-        </a>
-
-        <a href="reports.php" class="nav-item <?= $current_page === 'reports.php' ? 'active' : '' ?>">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-            </svg>
-            <span class="nav-label">Reports</span>
-        </a>
-
-        <a href="export.php" class="nav-item <?= $current_page === 'export.php' ? 'active' : '' ?>">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-            </svg>
-            <span class="nav-label">Export Data</span>
         </a>
 
         <div class="nav-section-label">Account</div>
@@ -144,7 +86,7 @@ $collapsed    = isset($_COOKIE['sidebar_collapsed']) && $_COOKIE['sidebar_collap
             <div class="user-avatar"><?= strtoupper(substr($user_name, 0, 1)) ?></div>
             <div class="nav-label">
                 <div class="user-name"><?= htmlspecialchars($user_name) ?></div>
-                <div class="user-role">Personal plan</div>
+
             </div>
         </div>
     </div>
@@ -156,7 +98,7 @@ $collapsed    = isset($_COOKIE['sidebar_collapsed']) && $_COOKIE['sidebar_collap
 .sidebar {
     width: var(--sidebar-w);
     flex-shrink: 0;
-    background: var(--ink);
+    background: linear-gradient(180deg,#1E1B4B 0%,#16134A 100%);
     position: fixed;
     top: 0; left: 0;
     height: 100vh;
@@ -170,17 +112,17 @@ $collapsed    = isset($_COOKIE['sidebar_collapsed']) && $_COOKIE['sidebar_collap
 
 .sidebar-brand {
     padding: 20px 14px 18px;
-    border-bottom: 1px solid rgba(255,255,255,.07);
+    border-bottom: 1px solid rgba(255,255,255,.08);
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-shrink: 0;
 }
 .brand-mark  { display: flex; align-items: center; gap: 10px; overflow: hidden; }
-.brand-icon  { width: 34px; height: 34px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.brand-icon  { width: 34px; height: 34px; background: linear-gradient(135deg,#FF6B35,#E8356D); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 4px 14px rgba(255,107,53,.4); }
 .brand-icon svg { width: 18px; height: 18px; color: #fff; }
 .brand-text  { transition: opacity .2s, width .2s; overflow: hidden; }
-.brand-name  { font-size: 15px; font-weight: 600; color: #fff; letter-spacing: -.2px; white-space: nowrap; }
+.brand-name  { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: -.2px; white-space: nowrap; }
 .brand-tagline { font-size: 11px; color: rgba(255,255,255,.4); margin-top: 1px; white-space: nowrap; }
 .sidebar.collapsed .brand-text { opacity: 0; width: 0; pointer-events: none; }
 
@@ -190,7 +132,7 @@ $collapsed    = isset($_COOKIE['sidebar_collapsed']) && $_COOKIE['sidebar_collap
     cursor: pointer; display: flex; align-items: center; justify-content: center;
     color: rgba(255,255,255,.4); flex-shrink: 0; transition: background .15s, transform .25s;
 }
-.sidebar-toggle:hover { background: rgba(255,255,255,.14); color: rgba(255,255,255,.9); }
+.sidebar-toggle:hover { background: rgba(255,255,255,.16); color: #fff; }
 .sidebar.collapsed .sidebar-toggle { transform: rotate(180deg); margin: 0 auto; }
 
 .sidebar-nav { padding: 12px 8px; flex: 1; overflow-y: auto; overflow-x: hidden; }
@@ -210,15 +152,15 @@ $collapsed    = isset($_COOKIE['sidebar_collapsed']) && $_COOKIE['sidebar_collap
     white-space: nowrap; overflow: hidden; transition: background .15s, color .15s;
 }
 .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
-.nav-item:hover  { background: rgba(255,255,255,.06); color: rgba(255,255,255,.85); }
-.nav-item.active { background: rgba(99,102,241,.2);   color: #a5b4fc; font-weight: 500; }
+.nav-item:hover  { background: rgba(255,255,255,.08); color: rgba(255,255,255,.9); }
+.nav-item.active { background: linear-gradient(90deg,rgba(255,107,53,.25),rgba(232,53,109,.15)); color: #FFB39A; font-weight: 600; border-left: 2px solid #FF6B35; }
 .nav-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; transition: opacity .2s, width .2s; }
-.nav-badge { margin-left: auto; background: rgba(99,102,241,.35); color: #a5b4fc; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 10px; font-family: 'DM Mono', monospace; transition: opacity .2s; }
+.nav-badge { margin-left: auto; background: rgba(255,107,53,.2); color: #FFB39A; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 10px; font-family: var(--font-mono,monospace); transition: opacity .2s; }
 .sidebar.collapsed .nav-label,
 .sidebar.collapsed .nav-badge { opacity: 0; width: 0; pointer-events: none; }
 .sidebar.collapsed .nav-item  { justify-content: center; padding: 10px; }
 
-.sidebar-footer { padding: 10px 8px 14px; border-top: 1px solid rgba(255,255,255,.06); flex-shrink: 0; }
+.sidebar-footer { padding: 10px 8px 14px; border-top: 1px solid rgba(255,255,255,.08); flex-shrink: 0; }
 .user-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 7px; transition: background .15s; }
 .user-row:hover { background: rgba(255,255,255,.06); }
 .user-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #fff; flex-shrink: 0; }
@@ -231,6 +173,15 @@ $collapsed    = isset($_COOKIE['sidebar_collapsed']) && $_COOKIE['sidebar_collap
     .sidebar.open { transform: translateX(0); }
     .sidebar-overlay.open { display: block; }
 }
+
+/* ── Gold theme additions (appended, nothing changed above) ── */
+.nav-item.active {
+    background: linear-gradient(90deg,rgba(255,107,53,.25),rgba(232,53,109,.15)) !important;
+    color: #FFB39A !important;
+}
+.nav-badge { color: #FFB39A !important; background: rgba(255,107,53,.2) !important; }
+.brand-icon { background: linear-gradient(135deg,#FF6B35,#E8356D) !important; box-shadow: 0 4px 14px rgba(255,107,53,.4); }
+.user-avatar { background: linear-gradient(135deg,#FF6B35,#E8356D) !important; }
 </style>
 
 <script>
