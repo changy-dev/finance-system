@@ -790,23 +790,9 @@ body > * { position: relative; z-index: 1; }
                 </div>
             </div>
 
-            <!-- CHARTS ROW -->
-            <div class="charts-row">
-                <div class="card anim">
-                    <div class="card-hd">
-                        <div>
-                            <div class="card-title">Spending Trend</div>
-                            <div class="card-sub">Monthly expense breakdown</div>
-                        </div>
-                        <div class="seg" id="rangeToggle">
-                            <button class="seg-btn active" data-range="12">12M</button>
-                            <button class="seg-btn" data-range="6">6M</button>
-                            <button class="seg-btn" data-range="3">3M</button>
-                        </div>
+            
                     </div>
-                    <div class="chart-wrap">
-                        <canvas id="lineChart"></canvas>
-                    </div>
+                    
                 </div>
 
                 <div class="card anim">
@@ -1002,7 +988,7 @@ body > * { position: relative; z-index: 1; }
             <div class="field">
                 <label>Type</label>
                 <div class="type-toggle">
-                    <button type="button" class="type-btn selected-expense" id="btnExpense" onclick="setType('expense')">↓ Expense</button>
+                    <button type="button" class="type-btn selected-expense" id="btnExpense" onclick="setType('expense')">↓ Expenseq</button>
                     <button type="button" class="type-btn" id="btnIncome" onclick="setType('income')">↑ Income</button>
                 </div>
                 <input type="hidden" name="type" id="typeInput" value="expense">

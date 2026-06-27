@@ -1,10 +1,8 @@
 <?php
 session_start();
-include '../core/db.php';
-
-if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit(); }
-
-$user_id = (int) $_SESSION['user_id'];
+require_once __DIR__ . '/../core/db.php';
+require_once __DIR__ . '/../core/security.php';
+// $user_id is set by security.php
 $user = $conn->query("SELECT * FROM users WHERE user_id=$user_id")->fetch_assoc();
 
 /* ── HANDLE AJAX SAVE ── */
