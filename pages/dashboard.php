@@ -981,14 +981,14 @@ body > * { position: relative; z-index: 1; }
 
         <form id="txForm">
             <?php
-            // Ensure csrf.php is loaded (dashboard.php doesn't include it directly)
+            
             if (!function_exists('csrf_token')) { require_once __DIR__ . '/../core/csrf.php'; }
             echo csrf_field();
             ?>
             <div class="field">
                 <label>Type</label>
                 <div class="type-toggle">
-                    <button type="button" class="type-btn selected-expense" id="btnExpense" onclick="setType('expense')">↓ Expenseq</button>
+                    <button type="button" class="type-btn selected-expense" id="btnExpense" onclick="setType('expense')">↓ Expenses</button>
                     <button type="button" class="type-btn" id="btnIncome" onclick="setType('income')">↑ Income</button>
                 </div>
                 <input type="hidden" name="type" id="typeInput" value="expense">

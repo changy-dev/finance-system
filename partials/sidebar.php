@@ -94,7 +94,7 @@ $collapsed    = isset($_COOKIE['sidebar_collapsed']) && $_COOKIE['sidebar_collap
 </aside>
 
 <style>
-/* ── Sidebar styles (defined here, not in header, to keep them co-located) ── */
+    
 .sidebar {
     width: var(--sidebar-w);
     flex-shrink: 0;
@@ -174,7 +174,7 @@ $collapsed    = isset($_COOKIE['sidebar_collapsed']) && $_COOKIE['sidebar_collap
     .sidebar-overlay.open { display: block; }
 }
 
-/* ── Gold theme additions (appended, nothing changed above) ── */
+
 .nav-item.active {
     background: linear-gradient(90deg,rgba(255,107,53,.25),rgba(232,53,109,.15)) !important;
     color: #FFB39A !important;
