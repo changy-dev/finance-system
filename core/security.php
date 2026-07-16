@@ -1,17 +1,5 @@
 <?php
-// ============================================================
-// security.php — Include this at the top of EVERY protected page
-// Handles:
-// - Session validation
-// - Idle timeout
-// - Browser fingerprint security
-//
-// Usage:
-// require_once 'security.php';
-// (AFTER session_start())
-// ============================================================
 
-// ── CRITICAL FIX #4: Idle timeout ─────────────────────────
 $session_lifetime = (int)($_ENV['SESSION_LIFETIME'] ?? 1800);
 
 if (
@@ -22,20 +10,16 @@ if (
     session_unset();
     session_destroy();
 
-    header("Location: login.php?reason=timeout");
+    header("Location: /finance_system/auth/login.php?reason=timeout");
     exit();
 }
 
-// ── Not logged in at all ───────────────────────────────────
+
 if (!isset($_SESSION['user_id'])) {
 
-    header("Location: login.php");
+    header("Location: /finance_system/auth/login.php");
     exit();
 }
-
-// ── CRITICAL FIX #4: Session fingerprint check ─────────────
-// Stable browser fingerprint (NO IP)
-// Prevents false logouts when IP changes
 
 $current_fingerprint = hash(
     'sha256',
@@ -63,7 +47,7 @@ if (
     session_unset();
     session_destroy();
 
-    header("Location: login.php?reason=security");
+    header("Location: /finance_system/auth/login.php?reason=security");
     exit();
 }
 

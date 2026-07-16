@@ -12,7 +12,7 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-$user_id = (int) $_SESSION['user_id']; // cast to int — prevents SQL injection
+$user_id = (int) $_SESSION['user_id']; 
 
 /* ── MONTHLY TREND ── */
 $months  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -325,7 +325,7 @@ body > * { position: relative; z-index: 1; }
 }
 .btn svg { width: 14px; height: 14px; flex-shrink: 0; }
 .btn-primary {
-    background: linear-gradient(135deg, #FF6B35, #E8356D);
+    background: linear-gradient(135deg, #ff35cd, #da174e);
     color: #fff;
     box-shadow: 0 4px 16px rgba(255,107,53,.3);
 }
@@ -421,6 +421,7 @@ body > * { position: relative; z-index: 1; }
 /* ── CHART GRID ── */
 .charts-row { display: grid; grid-template-columns: 1fr 340px; gap: 14px; margin-bottom: 14px; }
 .bottom-row { display: grid; grid-template-columns: 1fr 300px; gap: 14px; }
+.right-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 
 /* ── CARDS ── */
 .card {
@@ -790,37 +791,6 @@ body > * { position: relative; z-index: 1; }
                 </div>
             </div>
 
-            
-                    </div>
-                    
-                </div>
-
-                <div class="card anim">
-                    <div class="card-hd">
-                        <div>
-                            <div class="card-title">By Category</div>
-                            <div class="card-sub"><?php echo count($catLabels); ?> categories</div>
-                        </div>
-                    </div>
-
-                    <?php if (count($catLabels) > 0): ?>
-                        <div class="donut-wrap">
-                            <canvas id="pieChart" style="max-width:160px; max-height:160px;"></canvas>
-                            <div class="donut-center">
-                                <div class="donut-lbl" id="donutLabel">Total</div>
-                                <div class="donut-val" id="donutVal">KES <?php echo number_format($totalExpense); ?></div>
-                            </div>
-                        </div>
-                        <div class="legend" id="legend"></div>
-                    <?php else: ?>
-                        <div class="empty">
-                            <div class="empty-ico">📊</div>
-                            <div class="empty-txt">No expenses yet.<br>Add your first transaction.</div>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-
             <!-- BOTTOM ROW -->
             <div class="bottom-row">
                 <div class="card anim">
@@ -919,6 +889,32 @@ body > * { position: relative; z-index: 1; }
                     <?php endif; ?>
                 </div>
 
+                <div class="right-col">
+                <div class="card anim">
+                    <div class="card-hd">
+                        <div>
+                            <div class="card-title">By Category</div>
+                            <div class="card-sub"><?php echo count($catLabels); ?> categories</div>
+                        </div>
+                    </div>
+
+                    <?php if (count($catLabels) > 0): ?>
+                        <div class="donut-wrap">
+                            <canvas id="pieChart" style="max-width:160px; max-height:160px;"></canvas>
+                            <div class="donut-center">
+                                <div class="donut-lbl" id="donutLabel">Total</div>
+                                <div class="donut-val" id="donutVal">KES <?php echo number_format($totalExpense); ?></div>
+                            </div>
+                        </div>
+                        <div class="legend" id="legend"></div>
+                    <?php else: ?>
+                        <div class="empty">
+                            <div class="empty-ico">📊</div>
+                            <div class="empty-txt">No expenses yet.<br>Add your first transaction.</div>
+                        </div>
+                    <?php endif; ?>
+                </div>
+
                 <!-- INSIGHTS -->
                 <div class="card anim">
                     <div class="card-hd">
@@ -959,6 +955,7 @@ body > * { position: relative; z-index: 1; }
                         </div>
                     </div>
                 </div>
+                </div><!-- /right-col -->
             </div>
 
         </div><!-- /content -->
@@ -999,36 +996,36 @@ body > * { position: relative; z-index: 1; }
                     <label id="categoryLabel">Category</label>
                     <select name="category" id="categorySelect" required>
                         <option value="">Choose…</option>
-                        <optgroup label="🍽️ Food &amp; Dining">
-                            <option value="Groceries">🛒 Groceries</option>
-                            <option value="Household Supplies">🧴 Household Supplies</option>
-                            <option value="Eating Out">🍔 Eating Out</option>
+                        <optgroup label=" Food &amp; Dining">
+                            <option value="Groceries"> Groceries</option>
+                            <option value="Household Supplies"> Household Supplies</option>
+                            <option value="Eating Out"> Eating Out</option>
                         </optgroup>
-                        <optgroup label="🚌 Transport &amp; Auto">
-                            <option value="Fuel &amp; Charging">⛽ Fuel &amp; Charging</option>
-                            <option value="Vehicle Maintenance">🔧 Vehicle Maintenance</option>
-                            <option value="Commuting">🚇 Commuting</option>
+                        <optgroup label=" Transport &amp; Auto">
+                            <option value="Fuel &amp; Charging"> Fuel &amp; Charging</option>
+                            <option value="Vehicle Maintenance"> Vehicle Maintenance</option>
+                            <option value="Commuting"> Commuting</option>
                         </optgroup>
-                        <optgroup label="💡 Utilities &amp; Home">
-                            <option value="Utilities">💡 Utilities</option>
-                            <option value="Home Decor">🛋️ Home Decor</option>
-                            <option value="Maintenance &amp; DIY">🔨 Maintenance &amp; DIY</option>
-                            <option value="Kitchenware">🍳 Kitchenware</option>
+                        <optgroup label=" Utilities &amp; Home">
+                            <option value="Utilities"> Utilities</option>
+                            <option value="Home Decor"> Home Decor</option>
+                            <option value="Maintenance &amp; DIY"> Maintenance &amp; DIY</option>
+                            <option value="Kitchenware"> Kitchenware</option>
                         </optgroup>
-                        <optgroup label="🏥 Health &amp; Wellness">
-                            <option value="Health &amp; Pharmacy">💊 Health &amp; Pharmacy</option>
-                            <option value="Personal Grooming">💆 Personal Grooming</option>
+                        <optgroup label=" Health &amp; Wellness">
+                            <option value="Health &amp; Pharmacy"> Health &amp; Pharmacy</option>
+                            <option value="Personal Grooming"> Personal Grooming</option>
                         </optgroup>
-                        <optgroup label="🛍️ Shopping &amp; Lifestyle">
-                            <option value="Clothing &amp; Accessories">👗 Clothing &amp; Accessories</option>
-                            <option value="Electronics &amp; Tech">📱 Electronics &amp; Tech</option>
-                            <option value="Entertainment">🎬 Entertainment</option>
+                        <optgroup label=" Shopping &amp; Lifestyle">
+                            <option value="Clothing &amp; Accessories"> Clothing &amp; Accessories</option>
+                            <option value="Electronics &amp; Tech"> Electronics &amp; Tech</option>
+                            <option value="Entertainment"> Entertainment</option>
                         </optgroup>
-                        <optgroup label="🎁 Miscellaneous">
-                            <option value="Gifts &amp; Celebrations">🎉 Gifts &amp; Celebrations</option>
-                            <option value="Pet Supplies">🐾 Pet Supplies</option>
-                            <option value="Impulse Buys">🛒 Impulse Buys</option>
-                            <option value="Other">📦 Other</option>
+                        <optgroup label=" Miscellaneous">
+                            <option value="Gifts &amp; Celebrations"> Gifts &amp; Celebrations</option>
+                            <option value="Pet Supplies"> Pet Supplies</option>
+                            <option value="Impulse Buys"> Impulse Buys</option>
+                            <option value="Other"> Other</option>
                         </optgroup>
                     </select>
                 </div>
@@ -1076,42 +1073,42 @@ document.getElementById('modal').addEventListener('click', function(e) {
 /* CATEGORY OPTIONS */
 const expenseCategories = [
     // Food & Dining
-    { group: '🍽️ Food & Dining',        value: 'Groceries',               label: '🛒 Groceries'               },
-    { group: '🍽️ Food & Dining',        value: 'Household Supplies',       label: '🧴 Household Supplies'       },
-    { group: '🍽️ Food & Dining',        value: 'Eating Out',               label: '🍔 Eating Out'               },
+    { group: '🍽️ Food & Dining',        value: 'Groceries',               label: ' Groceries'               },
+    { group: '🍽️ Food & Dining',        value: 'Household Supplies',       label: ' Household Supplies'       },
+    { group: '🍽️ Food & Dining',        value: 'Eating Out',               label: ' Eating Out'               },
     // Transport
-    { group: '🚌 Transport & Auto',      value: 'Fuel & Charging',          label: '⛽ Fuel & Charging'          },
-    { group: '🚌 Transport & Auto',      value: 'Vehicle Maintenance',      label: '🔧 Vehicle Maintenance'      },
-    { group: '🚌 Transport & Auto',      value: 'Commuting',                label: '🚇 Commuting'                },
+    { group: '🚌 Transport & Auto',      value: 'Fuel & Charging',          label: ' Fuel & Charging'          },
+    { group: '🚌 Transport & Auto',      value: 'Vehicle Maintenance',      label: ' Vehicle Maintenance'      },
+    { group: '🚌 Transport & Auto',      value: 'Commuting',                label: ' Commuting'                },
     // Utilities & Home
-    { group: '💡 Utilities & Home',      value: 'Utilities',                label: '💡 Utilities'                },
-    { group: '💡 Utilities & Home',      value: 'Home Decor',               label: '🛋️ Home Decor'              },
-    { group: '💡 Utilities & Home',      value: 'Maintenance & DIY',        label: '🔨 Maintenance & DIY'        },
-    { group: '💡 Utilities & Home',      value: 'Kitchenware',              label: '🍳 Kitchenware'              },
+    { group: '💡 Utilities & Home',      value: 'Utilities',                label: ' Utilities'                },
+    { group: '💡 Utilities & Home',      value: 'Home Decor',               label: ' Home Decor'              },
+    { group: '💡 Utilities & Home',      value: 'Maintenance & DIY',        label: ' Maintenance & DIY'        },
+    { group: '💡 Utilities & Home',      value: 'Kitchenware',              label: ' Kitchenware'              },
     // Health
-    { group: '🏥 Health & Wellness',     value: 'Health & Pharmacy',        label: '💊 Health & Pharmacy'        },
-    { group: '🏥 Health & Wellness',     value: 'Personal Grooming',        label: '💆 Personal Grooming'        },
+    { group: '🏥 Health & Wellness',     value: 'Health & Pharmacy',        label: ' Health & Pharmacy'        },
+    { group: '🏥 Health & Wellness',     value: 'Personal Grooming',        label: ' Personal Grooming'        },
     // Shopping
-    { group: '🛍️ Shopping & Lifestyle', value: 'Clothing & Accessories',   label: '👗 Clothing & Accessories'   },
-    { group: '🛍️ Shopping & Lifestyle', value: 'Electronics & Tech',       label: '📱 Electronics & Tech'       },
-    { group: '🛍️ Shopping & Lifestyle', value: 'Entertainment',            label: '🎬 Entertainment'            },
+    { group: '🛍️ Shopping & Lifestyle', value: 'Clothing & Accessories',   label: ' Clothing & Accessories'   },
+    { group: '🛍️ Shopping & Lifestyle', value: 'Electronics & Tech',       label: ' Electronics & Tech'       },
+    { group: '🛍️ Shopping & Lifestyle', value: 'Entertainment',            label: ' Entertainment'            },
     // Misc
-    { group: '🎁 Miscellaneous',         value: 'Gifts & Celebrations',     label: '🎉 Gifts & Celebrations'     },
-    { group: '🎁 Miscellaneous',         value: 'Pet Supplies',             label: '🐾 Pet Supplies'             },
-    { group: '🎁 Miscellaneous',         value: 'Impulse Buys',             label: '🛒 Impulse Buys'             },
-    { group: '🎁 Miscellaneous',         value: 'Other',                    label: '📦 Other'                    },
+    { group: '🎁 Miscellaneous',         value: 'Gifts & Celebrations',     label: ' Gifts & Celebrations'     },
+    { group: '🎁 Miscellaneous',         value: 'Pet Supplies',             label: ' Pet Supplies'             },
+    { group: '🎁 Miscellaneous',         value: 'Impulse Buys',             label: ' Impulse Buys'             },
+    { group: '🎁 Miscellaneous',         value: 'Other',                    label: ' Other'                    },
 ];
 
 const incomeCategories = [
-    { value: 'Salary',        label: '💼 Salary'           },
-    { value: 'Business',      label: '🏢 Business'         },
-    { value: 'Investments',   label: '📈 Investments'      },
-    { value: 'Shares',        label: '📊 Shares/Dividends' },
-    { value: 'Freelance',     label: '💻 Freelance'        },
-    { value: 'Family',        label: '👨‍👩‍👧 Family & Friends' },
-    { value: 'Rental',        label: '🏠 Rental Income'    },
-    { value: 'Gift',          label: '🎁 Gift'             },
-    { value: 'Other Income',  label: '💰 Other Income'     },
+    { value: 'Salary',        label: ' Salary'           },
+    { value: 'Business',      label: ' Business'         },
+    { value: 'Investments',   label: ' Investments'      },
+    { value: 'Shares',        label: ' Shares/Dividends' },
+    { value: 'Freelance',     label: ' Freelance'        },
+    { value: 'Family',        label: ' Family & Friends' },
+    { value: 'Rental',        label: ' Rental Income'    },
+    { value: 'Gift',          label: ' Gift'             },
+    { value: 'Other Income',  label: ' Other Income'     },
 ];
 
 function populateCategories(type) {

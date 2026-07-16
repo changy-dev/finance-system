@@ -5,13 +5,13 @@ require_once __DIR__ . '/../core/csrf.php';
 
 // ── AUTH CHECK ────────────────────────────────────────────────────────────
 if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
+    header("Location: ../auth/login.php");
     exit();
 }
 
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header("Location: dashboard.php");
+    header("Location: ../pages/dashboard.php");
     exit();
 }
 
@@ -21,8 +21,15 @@ csrf_verify();
 $user_id = (int) $_SESSION['user_id'];
 $id      = isset($_POST['id']) ? (int) $_POST['id'] : 0;
 
+// Redirect back to whichever page (dashboard or transactions) the delete
+// was triggered from, so the user isn't bounced away from where they were.
+$referer   = $_SERVER['HTTP_REFERER'] ?? '';
+$returnTo  = (strpos($referer, '/pages/transactions.php') !== false)
+    ? '../pages/transactions.php'
+    : '../pages/dashboard.php';
+
 if ($id <= 0) {
-    header("Location: dashboard.php?msg=invalid");
+    header("Location: $returnTo?msg=invalid");
     exit();
 }
 
@@ -34,7 +41,7 @@ $authUser = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 if (!$authUser) {
-    header("Location: login.php");
+    header("Location: ../auth/login.php");
     exit();
 }
 
@@ -51,9 +58,9 @@ if ($role === 'admin') {
 }
 
 if ($stmt->execute()) {
-    header("Location: dashboard.php?msg=success");
+    header("Location: $returnTo?msg=success");
 } else {
-    header("Location: dashboard.php?msg=error");
+    header("Location: $returnTo?msg=error");
 }
 
 $stmt->close();

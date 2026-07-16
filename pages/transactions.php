@@ -82,36 +82,6 @@ $net = ($stats['total_income'] ?? 0) - ($stats['total_expense'] ?? 0);
 /* ── CATEGORIES (for filter dropdown) ── */
 $cats = $conn->query("SELECT DISTINCT category FROM transactions WHERE user_id=$user_id AND is_deleted_by_user=0 ORDER BY category");
 
-/* ── EXPORT CSV ── */
-if (isset($_GET['export']) && $_GET['export'] === 'csv') {
-    header('Content-Type: text/csv');
-    header('Content-Disposition: attachment; filename="transactions_'.date('Y-m-d').'.csv"');
-    $out = fopen('php://output', 'w');
-    fputcsv($out, ['ID','Type','Category','Amount (KES)','Date','Description']);
-    $exp_stmt = $conn->prepare("SELECT * FROM transactions $where ORDER BY created_at DESC");
-    // Remove pagination params
-    $exp_types = substr($types, 0, -2);
-    $exp_params = array_slice($params, 0, -2);
-    $exp_stmt->bind_param($exp_types, ...$exp_params);
-    $exp_stmt->execute();
-    $exp_res = $exp_stmt->get_result();
-    while ($row = $exp_res->fetch_assoc()) {
-        $display_date = ($row['date'] === '0000-00-00' || empty($row['date']))
-            ? date('Y-m-d', strtotime($row['created_at']))
-            : $row['date'];
-        fputcsv($out, [
-            $row['transaction_id'],
-            $row['type'],
-            $row['category'],
-            $row['amount'],
-            $display_date,
-            $row['description']
-        ]);
-    }
-    fclose($out);
-    exit;
-}
-
 /* ── HELPERS ── */
 function display_date($row) {
     $d = $row['date'] ?? '';
@@ -577,10 +547,6 @@ textarea.form-control{height:auto;padding:10px 12px;resize:vertical;}
       </div>
     </div>
     <div class="topbar-actions">
-      <a href="<?php echo qs(['export'=>'csv']); ?>" class="btn btn-ghost">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-        <span>Export CSV</span>
-      </a>
       <button class="btn btn-primary" onclick="openAddModal()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
         <span>Add Transaction</span>
@@ -841,7 +807,11 @@ textarea.form-control{height:auto;padding:10px 12px;resize:vertical;}
       <div class="del-confirm-sub" id="delSub">This action cannot be undone.</div>
       <div style="display:flex;gap:10px;justify-content:center;">
         <button class="btn btn-ghost" onclick="closeModal('delModal')">Cancel</button>
-        <a href="#" id="delConfirmBtn" class="btn btn-danger">Yes, Delete</a>
+        <form id="delConfirmForm" method="POST" action="../actions/delete_transaction.php">
+          <input type="hidden" name="id" id="delConfirmId" value="">
+          <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
+          <button type="submit" class="btn btn-danger">Yes, Delete</button>
+        </form>
       </div>
     </div>
   </div>
@@ -896,7 +866,7 @@ function openEditModal(tx) {
 
 function openDeleteModal(id, name) {
   document.getElementById('delSub').textContent = `Deleting "${name}" — this cannot be undone.`;
-  document.getElementById('delConfirmBtn').href = `delete_transaction.php?id=${id}`;
+  document.getElementById('delConfirmId').value = id;
   document.getElementById('delModal').classList.add('open');
 }
 
