@@ -16,8 +16,32 @@ if (isset($_POST['ajax'])) {
         $phone = trim($_POST['phone'] ?? '');
         $bio   = trim($_POST['status_message'] ?? '');
 
+        if ($name === '' || mb_strlen($name) < 2) {
+            echo json_encode(['status' => 'error', 'message' => 'Please enter your full name.']);
+            exit();
+        }
+        if (mb_strlen($name) > 100) {
+            echo json_encode(['status' => 'error', 'message' => 'Name must be under 100 characters.']);
+            exit();
+        }
+        if ($phone !== '' && !preg_match('/^[0-9+\-\s()]{7,20}$/', $phone)) {
+            echo json_encode(['status' => 'error', 'message' => 'Please enter a valid phone number.']);
+            exit();
+        }
+        if (mb_strlen($bio) > 300) {
+            echo json_encode(['status' => 'error', 'message' => 'Bio must be under 300 characters.']);
+            exit();
+        }
+
         if (!empty($_FILES['profile_pic']['name'])) {
             $allowed = ['image/jpeg','image/png','image/gif','image/webp'];
+            $max_size = 2 * 1024 * 1024; // 2MB
+
+            if ($_FILES['profile_pic']['size'] > $max_size) {
+                echo json_encode(['status' => 'error', 'message' => 'Image must be under 2MB.']);
+                exit();
+            }
+
             $mime    = mime_content_type($_FILES['profile_pic']['tmp_name']);
             if (in_array($mime, $allowed)) {
                 $ext  = pathinfo($_FILES['profile_pic']['name'], PATHINFO_EXTENSION);
@@ -29,6 +53,9 @@ if (isset($_POST['ajax'])) {
                     $stmt->bind_param("si", $file, $user_id);
                     $stmt->execute(); $stmt->close();
                 }
+            } else {
+                echo json_encode(['status' => 'error', 'message' => 'Only JPG, PNG, GIF or WEBP images are allowed.']);
+                exit();
             }
         }
 
@@ -49,8 +76,16 @@ if (isset($_POST['ajax'])) {
             echo json_encode(['status' => 'error', 'message' => 'Current password is incorrect']);
         } elseif (strlen($new) < 8) {
             echo json_encode(['status' => 'error', 'message' => 'Password must be at least 8 characters']);
+        } elseif (!preg_match('/[0-9]/', $new)) {
+            echo json_encode(['status' => 'error', 'message' => 'Password needs at least one number']);
+        } elseif (!preg_match('/[A-Z]/', $new)) {
+            echo json_encode(['status' => 'error', 'message' => 'Password needs at least one uppercase letter']);
+        } elseif (!preg_match('/[a-z]/', $new)) {
+            echo json_encode(['status' => 'error', 'message' => 'Password needs at least one lowercase letter']);
         } elseif ($new !== $confirm) {
             echo json_encode(['status' => 'error', 'message' => 'Passwords do not match']);
+        } elseif ($new === $current) {
+            echo json_encode(['status' => 'error', 'message' => 'New password must be different from the current one']);
         } else {
             $hashed = password_hash($new, PASSWORD_BCRYPT);
             $stmt   = $conn->prepare("UPDATE users SET password=? WHERE user_id=?");
@@ -106,6 +141,10 @@ if (isset($_POST['ajax'])) {
             <a href="../pages/budget.php" class="nav-item" title="Budget">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
                 <span class="nav-label">Budget</span>
+            </a>
+            <a href="../pages/reports.php" class="nav-item" title="Reports">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0h6m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2zM9 19H5a2 2 0 01-2-2v-3a2 2 0 012-2h2"/></svg>
+                <span class="nav-label">Reports</span>
             </a>
             <div class="nav-section-label" style="margin-top:16px;">Account</div>
             <a href="../pages/settings.php" class="nav-item active" title="Settings">
@@ -258,7 +297,28 @@ function previewAvatar(input) {
     }
 }
 
+function validateProfileForm() {
+    const name  = document.getElementById('fullName').value.trim();
+    const phone = document.getElementById('phone').value.trim();
+    const bio   = document.getElementById('bio').value.trim();
+    const file  = document.getElementById('avatarInput').files[0];
+
+    if (name.length < 2) return 'Please enter your full name.';
+    if (name.length > 100) return 'Name must be under 100 characters.';
+    if (phone && !/^[0-9+\-\s()]{7,20}$/.test(phone)) return 'Please enter a valid phone number.';
+    if (bio.length > 300) return 'Bio must be under 300 characters.';
+    if (file) {
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        if (!allowedTypes.includes(file.type)) return 'Only JPG, PNG, GIF or WEBP images are allowed.';
+        if (file.size > 2 * 1024 * 1024) return 'Image must be under 2MB.';
+    }
+    return null;
+}
+
 function saveProfile() {
+    const validationError = validateProfileForm();
+    if (validationError) return showToast(validationError, 'error');
+
     const fd = new FormData();
     fd.append('ajax', 1); fd.append('action', 'profile'); fd.append('csrf_token', CSRF_TOKEN);
     fd.append('full_name', document.getElementById('fullName').value);
@@ -309,7 +369,12 @@ function savePassword() {
     const newp = document.getElementById('newPass').value;
     const confirm = document.getElementById('confirmPass').value;
     if (!current || !newp || !confirm) return showToast('Please fill all fields', 'error');
+    if (newp.length < 8) return showToast('Password needs at least 8 characters', 'error');
+    if (!/[0-9]/.test(newp)) return showToast('Password needs at least one number', 'error');
+    if (!/[A-Z]/.test(newp)) return showToast('Password needs at least one uppercase letter', 'error');
+    if (!/[a-z]/.test(newp)) return showToast('Password needs at least one lowercase letter', 'error');
     if (newp !== confirm) return showToast('Passwords do not match', 'error');
+    if (newp === current) return showToast('New password must be different from the current one', 'error');
     const fd = new FormData();
     fd.append('ajax', 1); fd.append('action', 'password'); fd.append('csrf_token', CSRF_TOKEN);
     fd.append('current_password', current); fd.append('new_password', newp); fd.append('confirm_password', confirm);

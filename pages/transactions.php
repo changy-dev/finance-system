@@ -507,6 +507,13 @@ textarea.form-control{height:auto;padding:10px 12px;resize:vertical;}
       </svg>
       <span class="nav-label">Budget</span>
     </a>
+    <a href="../pages/reports.php" class="nav-item">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 19V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0h6m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2zM9 19H5a2 2 0 01-2-2v-3a2 2 0 012-2h2"/>
+      </svg>
+      <span class="nav-label">Reports</span>
+    </a>
     <div class="nav-section-label">Account</div>
     <a href="../pages/settings.php" class="nav-item">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -845,6 +852,7 @@ function openAddModal() {
   document.getElementById('txType').value = 'expense';
   updateCategories();
   document.getElementById('txAmount').value = '';
+  document.getElementById('txDate').max = new Date().toISOString().split('T')[0];
   document.getElementById('txDate').value = new Date().toISOString().split('T')[0];
   document.getElementById('txDesc').value = '';
   document.getElementById('txModal').classList.add('open');
@@ -853,6 +861,7 @@ function openAddModal() {
 function openEditModal(tx) {
   document.getElementById('modalTitle').textContent = 'Edit Transaction';
   document.getElementById('txId').value = tx.transaction_id;
+  document.getElementById('txDate').max = new Date().toISOString().split('T')[0];
   document.getElementById('txType').value = tx.type.toLowerCase();
   updateCategories();
   document.getElementById('txCategory').value = tx.category;
@@ -874,9 +883,32 @@ function closeModal(id) {
   document.getElementById(id).classList.remove('open');
 }
 
+function validateTxForm() {
+  const type     = document.getElementById('txType').value;
+  const category = document.getElementById('txCategory').value.trim();
+  const amount   = parseFloat(document.getElementById('txAmount').value);
+  const date     = document.getElementById('txDate').value;
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  if (!['expense', 'income'].includes(type)) return 'Please choose a valid transaction type.';
+  if (!category) return 'Please choose a category.';
+  if (isNaN(amount) || amount <= 0) return 'Amount must be a number greater than 0.';
+  if (amount > 100000000) return 'That amount looks too large — please double-check it.';
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return 'Please choose a valid date.';
+  if (date > todayStr) return 'Date cannot be in the future.';
+  return null;
+}
+
 async function submitTx() {
   const form  = document.getElementById('txForm');
   const id    = document.getElementById('txId').value;
+
+  const validationError = validateTxForm();
+  if (validationError) {
+    showToast(validationError, 'error');
+    return;
+  }
+
   const data  = new FormData(form);
   const url   = id ? `/finance_system/actions/edit_transaction.php` : `/finance_system/actions/add_transaction.php`;
   try {

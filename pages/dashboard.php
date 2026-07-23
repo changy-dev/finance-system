@@ -683,10 +683,17 @@ body > * { position: relative; z-index: 1; }
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
                 <span class="nav-label">Budget</span>
             </a>
+            <a href="../pages/reports.php" class="nav-item" title="Reports">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0h6m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2zM9 19H5a2 2 0 01-2-2v-3a2 2 0 012-2h2"/></svg>
+                <span class="nav-label">Reports</span>
+            </a>
             <div class="nav-section-label" style="margin-top:16px;">Account</div>
             <a href="../pages/settings.php" class="nav-item" title="Settings">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                 <span class="nav-label">Settings</span>
+                <a href="../auth/logout.php" class="nav-item" title="Logout">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                <span class="nav-label">Logout</span>
             </a>
         </nav>
 
@@ -1043,7 +1050,7 @@ body > * { position: relative; z-index: 1; }
 
             <div class="field">
                 <label>Date</label>
-                <input type="date" name="created_at" value="<?php echo date('Y-m-d'); ?>" required>
+                <input type="date" name="created_at" value="<?php echo date('Y-m-d'); ?>" max="<?php echo date('Y-m-d'); ?>" required>
             </div>
 
             <div class="modal-actions">
@@ -1151,9 +1158,34 @@ function setType(type) {
     populateCategories(type);
 }
 
+/* VALIDATION */
+function validateDashboardTxForm() {
+    const type     = document.getElementById('typeInput').value;
+    const category = document.getElementById('categorySelect').value;
+    const amountEl = document.querySelector('#txForm input[name="amount"]');
+    const dateEl   = document.querySelector('#txForm input[name="created_at"]');
+    const amount   = parseFloat(amountEl.value);
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    if (!['expense', 'income'].includes(type)) return 'Please choose a transaction type.';
+    if (!category) return 'Please choose a category.';
+    if (isNaN(amount) || amount <= 0) return 'Amount must be a number greater than 0.';
+    if (amount > 100000000) return 'That amount looks too large — please double-check it.';
+    if (!dateEl.value || !/^\d{4}-\d{2}-\d{2}$/.test(dateEl.value)) return 'Please choose a valid date.';
+    if (dateEl.value > todayStr) return 'Date cannot be in the future.';
+    return null;
+}
+
 /* FORM SUBMIT */
 document.getElementById('txForm').addEventListener('submit', function(e) {
     e.preventDefault();
+
+    const validationError = validateDashboardTxForm();
+    if (validationError) {
+        showToast(validationError, 'error');
+        return;
+    }
+
     const btn = document.getElementById('submitBtn');
     btn.disabled = true;
     btn.textContent = 'Saving…';
