@@ -405,7 +405,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             <div class="error-box"><?= htmlspecialchars($error) ?></div>
         <?php endif; ?>
 
-        <form method="POST" action="">
+        <form method="POST" action="" id="loginForm" novalidate>
             <div class="form-group">
                 <label for="email">Email address</label>
                 <input
@@ -417,6 +417,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     autocomplete="email"
                     autofocus
                 >
+                <div class="field-error" id="emailError" style="display:none;color:var(--red);font-size:12px;margin-top:5px;"></div>
             </div>
 
             <div class="form-group">
@@ -428,6 +429,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     required
                     autocomplete="current-password"
                 >
+                <div class="field-error" id="passwordError" style="display:none;color:var(--red);font-size:12px;margin-top:5px;"></div>
             </div>
 
             <button type="submit">Sign in</button>
@@ -437,5 +439,31 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             Don't have an account? <a href="../auth/register.php">Register</a>
         </p>
     </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', function (e) {
+            const email    = document.getElementById('email');
+            const password = document.getElementById('password');
+            const emailErr = document.getElementById('emailError');
+            const passErr  = document.getElementById('passwordError');
+            let valid = true;
+
+            emailErr.style.display = 'none';
+            passErr.style.display  = 'none';
+
+            const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailPattern.test(email.value.trim())) {
+                emailErr.textContent = 'Please enter a valid email address.';
+                emailErr.style.display = 'block';
+                valid = false;
+            }
+            if (!password.value) {
+                passErr.textContent = 'Password is required.';
+                passErr.style.display = 'block';
+                valid = false;
+            }
+            if (!valid) e.preventDefault();
+        });
+    </script>
 </body>
 </html>

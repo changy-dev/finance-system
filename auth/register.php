@@ -324,15 +324,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <?php endif; ?>
 
     <?php if (!$success): ?>
-    <form method="POST" id="regForm">
+    <form method="POST" id="regForm" novalidate>
+        <div id="clientError" class="error-msg" style="display:none;"></div>
         <div class="input-group">
             <label>Full Name</label>
-            <input type="text" name="full_name" required placeholder="John Doe" maxlength="100"
+            <input type="text" name="full_name" id="fullNameInput" required placeholder="John Doe" maxlength="100"
                    value="<?= htmlspecialchars($_POST['full_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
         </div>
         <div class="input-group">
             <label>Email Address</label>
-            <input type="email" name="email" required placeholder="example@gmail.com"
+            <input type="email" name="email" id="emailInput" required placeholder="example@gmail.com"
                    value="<?= htmlspecialchars($_POST['email'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
         </div>
         <div class="input-group">
@@ -376,6 +377,36 @@ function checkStrength(val) {
     label.textContent = val.length ? (labels[score - 1] || 'Very weak') : 'Enter a password';
     label.style.color = colors[score - 1] || '#94a3b8';
 }
+
+document.getElementById('regForm').addEventListener('submit', function (e) {
+    const fullName = document.getElementById('fullNameInput').value.trim();
+    const email    = document.getElementById('emailInput').value.trim();
+    const password = document.getElementById('pwdInput').value;
+    const errBox   = document.getElementById('clientError');
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    let message = null;
+    if (fullName.length < 2) {
+        message = 'Please enter your full name.';
+    } else if (!emailPattern.test(email)) {
+        message = 'Please enter a valid email address.';
+    } else if (password.length < 8) {
+        message = 'Password needs at least 8 characters.';
+    } else if (!/[0-9]/.test(password)) {
+        message = 'Password needs at least one number.';
+    } else if (!/[A-Z]/.test(password)) {
+        message = 'Password needs at least one uppercase letter.';
+    } else if (!/[a-z]/.test(password)) {
+        message = 'Password needs at least one lowercase letter.';
+    }
+
+    if (message) {
+        e.preventDefault();
+        errBox.textContent = message;
+        errBox.style.display = 'block';
+        errBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+});
 </script>
 </body>
 </html>

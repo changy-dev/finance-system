@@ -245,7 +245,9 @@ body > * { position: relative; z-index: 1; }
     font-family: var(--font-head);
     letter-spacing: -.4px; line-height: 1.2;
     background: linear-gradient(90deg, #0F0F28 40%, #FF6B35);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 .page-sub { font-size: 12.5px; color: var(--text-2); margin-top: 4px; }
 
@@ -543,9 +545,7 @@ body > * { position: relative; z-index: 1; }
 }
 @media (max-width: 480px) { .stats-row { grid-template-columns: 1fr; } }
 
-/* ══════════════════════════════════════
-   SETTINGS PAGE — shares tokens above
-   ══════════════════════════════════════ */
+
 
 .settings-tabs {
     display: flex; gap: 6px; margin-bottom: 24px;

@@ -54,9 +54,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($amount <= 0) {
         csrf_json_exit(['success' => false, 'message' => 'Amount must be greater than 0']);
     }
+    if ($amount > 100000000) {
+        csrf_json_exit(['success' => false, 'message' => 'Amount is too large']);
+    }
 
     if (empty($created_at) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $created_at)) {
         $created_at = date('Y-m-d');
+    }
+    if ($created_at > date('Y-m-d')) {
+        csrf_json_exit(['success' => false, 'message' => 'Date cannot be in the future']);
     }
 
     // Do NOT htmlspecialchars here — the DB should store raw text.

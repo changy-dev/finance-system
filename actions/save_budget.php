@@ -1,7 +1,7 @@
 <?php
 session_start();
-include 'db.php';
-require_once 'csrf.php';
+include __DIR__ . '/../core/db.php';
+require_once __DIR__ . '/../core/csrf.php';
 
 header('Content-Type: application/json');
 
@@ -50,16 +50,32 @@ if (!$stmt) {
     exit;
 }
 
-$saved  = 0;
-$errors = [];
+$saved   = 0;
+$errors  = [];
+$MAX_AMT = 100000000; // KES 100M sanity ceiling
+
+function valid_limit($v) {
+    // Must be numeric, non-negative, and within a sane range. Empty stays null (no limit set).
+    if ($v === null || $v === '') return [true, null];
+    if (!is_numeric($v)) return [false, null];
+    $f = (float) $v;
+    if ($f < 0 || $f > 100000000) return [false, null];
+    return [true, $f];
+}
 
 foreach ($budgets as $category => $amount) {
     if (!in_array($category, $allowed, true)) continue;
 
-    $amount  = max(0, (float) $amount);
-    $daily   = isset($daily_limits[$category])   && $daily_limits[$category]   !== '' ? max(0, (float)$daily_limits[$category])   : null;
-    $monthly = isset($monthly_limits[$category]) && $monthly_limits[$category] !== '' ? max(0, (float)$monthly_limits[$category]) : null;
-    $yearly  = isset($yearly_limits[$category])  && $yearly_limits[$category]  !== '' ? max(0, (float)$yearly_limits[$category])  : null;
+    [$okAmt, $amount]   = valid_limit($amount);
+    [$okD, $daily]      = valid_limit($daily_limits[$category]   ?? null);
+    [$okM, $monthly]    = valid_limit($monthly_limits[$category] ?? null);
+    [$okY, $yearly]     = valid_limit($yearly_limits[$category]  ?? null);
+
+    if (!$okAmt || !$okD || !$okM || !$okY) {
+        $errors[] = "$category (invalid amount)";
+        continue;
+    }
+    $amount = $amount ?? 0;
 
     $stmt->bind_param('isdddd', $user_id, $category, $amount, $daily, $monthly, $yearly);
     if ($stmt->execute()) {

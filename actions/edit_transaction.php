@@ -60,9 +60,17 @@ if ($amount <= 0) {
     echo json_encode(['success' => false, 'message' => 'Amount must be > 0']);
     exit;
 }
+if ($amount > 100000000) {
+    echo json_encode(['success' => false, 'message' => 'Amount is too large']);
+    exit;
+}
 
 if (empty($created_at) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $created_at)) {
     $created_at = date('Y-m-d');
+}
+if ($created_at > date('Y-m-d')) {
+    echo json_encode(['success' => false, 'message' => 'Date cannot be in the future']);
+    exit;
 }
 
 // Also update the `date` column to fix 0000-00-00
