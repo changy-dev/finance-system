@@ -671,7 +671,6 @@ body > * { position: relative; z-index: 1; }
             <a href="#" class="nav-item active" title="Dashboard">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10-3a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1v-7z"/></svg>
                 <span class="nav-label">Dashboard</span>
-                <span class="badge nav-badge">Live</span>
             </a>
 
             <div class="nav-section-label" style="margin-top:16px;">Money</div>
