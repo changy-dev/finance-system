@@ -1,8 +1,5 @@
-/* Fintrack assets/style.css — v2
-   Main design system is now in partials/header.php
-   This file provides legacy overrides and supplemental utilities */
 
-/* Legacy glass class (used in old dashboard) */
+
 .glass {
     background: rgba(255,255,255,.06);
     backdrop-filter: blur(20px);

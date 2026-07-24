@@ -92,7 +92,6 @@ function display_date($row) {
 }
 function qs($extra=[]) {
     $p = array_merge($_GET, $extra);
-    unset($p['export']);
     return '?' . http_build_query($p);
 }
 ?>
@@ -654,12 +653,6 @@ textarea.form-control{height:auto;padding:10px 12px;resize:vertical;}
       <div>
         <div class="table-title">All Transactions</div>
         <div class="table-meta">Page <?php echo $page_num; ?> of <?php echo $total_pages; ?> · <?php echo $total_rows; ?> total</div>
-      </div>
-      <div class="export-btns">
-        <a href="<?php echo qs(['sort'=>$sort==='asc'?'desc':'asc']); ?>" class="btn btn-ghost btn-sm">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4"/></svg>
-          <?php echo $sort === 'desc' ? 'Oldest first' : 'Newest first'; ?>
-        </a>
       </div>
     </div>
 

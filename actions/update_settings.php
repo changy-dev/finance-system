@@ -3,9 +3,7 @@ session_start();
 include 'db.php';
 require_once 'csrf.php';
 
-// ── AUTH CHECK ────────────────────────────────────────────────────────────
-// WHY: The original file had no auth check at all — anyone who knew the URL
-// could POST to this file and overwrite any user's settings by guessing a user_id.
+
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     exit();
@@ -17,9 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit();
 }
 
-// ── CSRF CHECK ────────────────────────────────────────────────────────────
-// WHY: Without this, a malicious website could silently submit this form
-// on behalf of a logged-in user and change their email, phone, or profile picture.
+
 csrf_verify();
 
 $user_id  = (int) $_SESSION['user_id'];
@@ -28,13 +24,13 @@ $phone    = trim($_POST['phone']    ?? '');
 $language = trim($_POST['language'] ?? 'en');
 $theme    = trim($_POST['theme']    ?? 'light');
 
-// Validate email
+
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     header("Location: settings.php?error=invalid_email");
     exit();
 }
 
-// Whitelist language and theme to prevent junk data
+
 $allowed_languages = ['en', 'fr', 'sw', 'ar'];
 $allowed_themes    = ['light', 'dark', 'auto'];
 $language = in_array($language, $allowed_languages) ? $language : 'en';
@@ -42,9 +38,7 @@ $theme    = in_array($theme,    $allowed_themes)    ? $theme    : 'light';
 
 $profile_pic = null;
 
-// ── FILE UPLOAD VALIDATION ────────────────────────────────────────────────
-// WHY: The original code had NO validation — anyone could upload a .php file
-// (webshell) disguised as a profile picture and execute it on your server.
+
 if (!empty($_FILES['profile_pic']['name'])) {
     $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     $max_size      = 2 * 1024 * 1024; // 2MB
@@ -75,7 +69,7 @@ if (!empty($_FILES['profile_pic']['name'])) {
     }
 }
 
-// ── UPDATE DATABASE ───────────────────────────────────────────────────────
+
 if ($profile_pic) {
     $stmt = $conn->prepare("UPDATE users SET email=?, phone=?, language=?, theme=?, profile_pic=? WHERE user_id=?");
     $stmt->bind_param("sssssi", $email, $phone, $language, $theme, $profile_pic, $user_id);

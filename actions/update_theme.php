@@ -1,5 +1,5 @@
 <?php
-// update_theme.php — AJAX endpoint to persist theme preference to DB
+
 session_start();
 require_once 'db.php';
 

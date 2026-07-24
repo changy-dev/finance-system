@@ -724,10 +724,7 @@ body > * { position: relative; z-index: 1; }
             </div>
             <div class="topbar-right">
                 <span class="topbar-date"><?php echo date('D, d M Y'); ?></span>
-                <button class="btn btn-ghost" onclick="window.print()">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                    Export
-                </button>
+                
                 <button class="btn btn-primary" onclick="openModal()">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                     Add Transaction

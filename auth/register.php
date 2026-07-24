@@ -21,9 +21,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $password  = $_POST['password']       ?? '';
 
     // ── Validate inputs ────────────────────────────────────
-    if (empty($full_name) || strlen($full_name) < 2) {
+    $full_name = trim($full_name);
+    $email     = trim($email);
+
+    if ($full_name === '' || mb_strlen($full_name) < 2) {
         $error = "Please enter your full name.";
-    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    } elseif (mb_strlen($full_name) > 100) {
+        $error = "Name must be under 100 characters.";
+    } elseif ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $error = "Please enter a valid email address.";
+    } elseif (strlen($email) > 254) {
         $error = "Please enter a valid email address.";
     } elseif (strlen($password) < 8) {
         $error = "Password needs at least 8 characters.";
@@ -35,32 +42,41 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $error = "Password needs at least one lowercase letter.";
     } else {
         // ── CRITICAL FIX #1: Prepared statement for duplicate check ──
-        $check_stmt = $conn->prepare("SELECT user_id FROM users WHERE email = ? LIMIT 1");
-        $check_stmt->bind_param("s", $email);
+        $check_stmt = $conn->prepare("SELECT user_id FROM users WHERE LOWER(email) = ? LIMIT 1");
+        $email_lc = mb_strtolower($email);
+        $check_stmt->bind_param("s", $email_lc);
         $check_stmt->execute();
         $check_stmt->store_result();
 
         if ($check_stmt->num_rows > 0) {
             $error = "Email already registered. Please log in.";
         } else {
-            // Hash password with bcrypt (cost factor 12 for security)
-            $hashed = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
-
-            // Sanitise name for DB storage — strip any HTML
-            $clean_name = strip_tags($full_name);
-
-            // ── CRITICAL FIX #1: Prepared statement for INSERT ──
-            $ins = $conn->prepare("
-                INSERT INTO users (full_name, email, password, role, status, is_verified, is_active)
-                VALUES (?, ?, ?, 'user', 'active', 0, 1)
-            ");
-            $ins->bind_param("sss", $clean_name, $email, $hashed);
-
-            if ($ins->execute()) {
-                $success = "Account created! You can now log in.";
+            // Ensure the provided name contains at least one letter
+            if (!preg_match('/\\p{L}/u', $full_name)) {
+                $error = "Please enter your full name.";
             } else {
-                error_log("Registration failed: " . $conn->error);
-                $error = "System error. Please try again.";
+                // Normalize email to lowercase for storage and comparison
+                $email_lc = mb_strtolower($email);
+
+                // Hash password with bcrypt (cost factor 12 for security)
+                $hashed = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
+
+                // Sanitise name for DB storage — strip any HTML
+                $clean_name = strip_tags($full_name);
+
+                // ── CRITICAL FIX #1: Prepared statement for INSERT ──
+                $ins = $conn->prepare("
+                    INSERT INTO users (full_name, email, password, role, status, is_verified, is_active)
+                    VALUES (?, ?, ?, 'user', 'active', 0, 1)
+                ");
+                $ins->bind_param("sss", $clean_name, $email_lc, $hashed);
+
+                if ($ins->execute()) {
+                    $success = "Account created! You can now log in.";
+                } else {
+                    error_log("Registration failed: " . $conn->error);
+                    $error = "System error. Please try again.";
+                }
             }
         }
     }
@@ -324,7 +340,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <?php endif; ?>
 
     <?php if (!$success): ?>
-    <form method="POST" id="regForm" novalidate>
+    <form method="POST" id="regForm">
         <div id="clientError" class="error-msg" style="display:none;"></div>
         <div class="input-group">
             <label>Full Name</label>
