@@ -676,6 +676,24 @@ body > * { position: relative; z-index: 1; }
 .auth-field input { width: 100%; padding: 10px 13px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--text-1); font-size: 14px; font-family: var(--font); outline: none; transition: border-color .15s, box-shadow .15s, background .15s; }
 .auth-field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255,107,53,.1); background: var(--surface); }
 
+.pwd-wrap { position: relative; display: flex; align-items: center; }
+.pwd-wrap input { padding-right: 40px; }
+.pwd-toggle-btn {
+    position: absolute;
+    right: 10px;
+    background: transparent;
+    border: none;
+    color: var(--text-2);
+    cursor: pointer;
+    padding: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: color .15s;
+}
+.pwd-toggle-btn:hover { color: var(--text-1); }
+
 .auth-submit-btn {
     width: 100%;
     padding: 12px;
@@ -960,7 +978,12 @@ body > * { position: relative; z-index: 1; }
 
                 <div class="auth-field">
                     <label>Password</label>
-                    <input type="password" name="password" required autocomplete="new-password" placeholder="••••••••">
+                    <div class="pwd-wrap">
+                        <input type="password" id="loginPassword" name="password" required autocomplete="new-password" placeholder="••••••••">
+                        <button type="button" class="pwd-toggle-btn" onclick="togglePasswordVisibility('loginPassword', this)" title="Show/Hide Password" aria-label="Toggle password visibility">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                        </button>
+                    </div>
                 </div>
 
                 <button type="submit" class="auth-submit-btn">Sign In to Dashboard →</button>
@@ -997,7 +1020,12 @@ body > * { position: relative; z-index: 1; }
 
                 <div class="auth-field">
                     <label>Create Password</label>
-                    <input type="password" name="password" required autocomplete="new-password" placeholder="At least 8 characters" oninput="checkAuthStrength(this.value)">
+                    <div class="pwd-wrap">
+                        <input type="password" id="regPassword" name="password" required autocomplete="new-password" placeholder="At least 8 characters" oninput="checkAuthStrength(this.value)">
+                        <button type="button" class="pwd-toggle-btn" onclick="togglePasswordVisibility('regPassword', this)" title="Show/Hide Password" aria-label="Toggle password visibility">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                        </button>
+                    </div>
                     <div class="strength-bar"><div class="strength-fill" id="authStrengthFill"></div></div>
                     <div class="strength-lbl" id="authStrengthLbl">Enter a password</div>
                 </div>
@@ -1102,6 +1130,18 @@ function checkAuthStrength(val) {
     fill.style.background = colors[score - 1] || '#E11D48';
     label.textContent = val.length ? (labels[score - 1] || 'Weak') : 'Enter a password';
     label.style.color = colors[score - 1] || 'var(--text-3)';
+}
+
+function togglePasswordVisibility(inputId, btn) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const isPassword = input.type === 'password';
+    input.type = isPassword ? 'text' : 'password';
+
+    const eyeOpen = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>`;
+    const eyeClosed = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858-5.908A8.962 8.962 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21M3 3l18 18"/></svg>`;
+
+    btn.innerHTML = isPassword ? eyeClosed : eyeOpen;
 }
 </script>
 </body>
