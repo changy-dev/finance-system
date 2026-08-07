@@ -591,14 +591,19 @@ body > * { position: relative; z-index: 1; }
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(15,15,40,.5);
+    background: rgba(15,15,40,.6);
     backdrop-filter: blur(8px);
     z-index: 999;
     align-items: center;
     justify-content: center;
     padding: 20px;
+    opacity: 0;
+    transition: opacity .25s ease;
 }
-.auth-overlay.open { display: flex; }
+.auth-overlay.open {
+    display: flex;
+    opacity: 1;
+}
 
 .auth-card {
     background: var(--surface);
@@ -609,10 +614,12 @@ body > * { position: relative; z-index: 1; }
     padding: 32px 28px;
     box-shadow: var(--shadow-lg);
     position: relative;
-    animation: modalIn .3s cubic-bezier(.4,0,.2,1);
+    transform: translateY(20px) scale(.92);
+    transition: transform .3s cubic-bezier(.34, 1.56, .64, 1);
 }
-
-@keyframes modalIn { from { opacity: 0; transform: translateY(18px) scale(.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.auth-overlay.open .auth-card {
+    transform: translateY(0) scale(1);
+}
 
 .auth-close {
     position: absolute;
@@ -769,7 +776,6 @@ body > * { position: relative; z-index: 1; }
 
 <!-- HERO -->
 <section class="hero">
-    <div class="hero-badge">✨ Next-Gen Personal Finance Engine</div>
     <h1 class="hero-title">Master Your Money with <span>Precision & Intelligence.</span></h1>
     <p class="hero-sub">Track daily expenses, set budget limits, automate savings goals, and visualize net worth progress in one high-performance dashboard.</p>
     
@@ -925,7 +931,8 @@ body > * { position: relative; z-index: 1; }
 </section>
 
 <!-- AUTH MODAL -->
-<div class="auth-overlay <?php echo !empty($active_auth_tab) ? 'open' : ''; ?>" id="authOverlay" onclick="if(event.target===this) closeAuthModal()">
+<?php $modal_open = (!empty($login_error) || !empty($reg_error) || !empty($_GET['auth'])); ?>
+<div class="auth-overlay <?php echo $modal_open ? 'open' : ''; ?>" id="authOverlay" onclick="if(event.target===this) closeAuthModal()">
     <div class="auth-card">
         <button class="auth-close" onclick="closeAuthModal()" aria-label="Close modal">✕</button>
 
