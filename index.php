@@ -53,23 +53,24 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['auth_action'])) {
 
     if ($auth_action === 'login') {
         $active_auth_tab = 'login';
-        $email    = trim($_POST['email'] ?? '');
-        $password = trim($_POST['password'] ?? '');
+        $login_input = trim($_POST['email'] ?? '');
+        $password    = trim($_POST['password'] ?? '');
 
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $login_error = "Invalid email address.";
+        if (empty($login_input)) {
+            $login_error = "Please enter your email or username.";
         } elseif (empty($password)) {
             $login_error = "Password is required.";
         } else {
-            $attempts  = get_login_attempts($conn, $email);
+            $attempts  = get_login_attempts($conn, $login_input);
             $is_locked = $attempts['locked_until'] && strtotime($attempts['locked_until']) > time();
 
             if ($is_locked) {
                 $mins  = ceil((strtotime($attempts['locked_until']) - time()) / 60);
                 $login_error = "Too many failed attempts. Try again in {$mins} minute(s).";
             } else {
-                $stmt = $conn->prepare("SELECT user_id, full_name, name, password, role, status FROM users WHERE email = ? LIMIT 1");
-                $stmt->bind_param("s", $email);
+                $stmt = $conn->prepare("SELECT user_id, full_name, name, username, email, password, role, status FROM users WHERE LOWER(email) = ? OR LOWER(username) = ? LIMIT 1");
+                $login_lc = mb_strtolower($login_input);
+                $stmt->bind_param("ss", $login_lc, $login_lc);
                 $stmt->execute();
                 $user = $stmt->get_result()->fetch_assoc();
 
@@ -79,23 +80,23 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['auth_action'])) {
                     } else {
                         $_SESSION['user_id']       = (int)$user['user_id'];
                         $_SESSION['name']          = !empty($user['full_name']) ? $user['full_name'] : $user['name'];
-                        $_SESSION['email']         = $email;
+                        $_SESSION['email']         = $user['email'];
                         $_SESSION['role']          = $user['role'] ?? 'user';
                         $_SESSION['last_activity'] = time();
                         $_SESSION['fingerprint']   = hash('sha256', $_SERVER['HTTP_USER_AGENT'] ?? '');
 
                         session_regenerate_id(false);
                         session_write_close();
-                        clear_login_attempts($conn, $email);
+                        clear_login_attempts($conn, $login_input);
 
                         header("Location: pages/dashboard.php");
                         exit();
                     }
                 } else {
-                    record_failed_attempt($conn, $email);
+                    record_failed_attempt($conn, $login_input);
                     $remaining = MAX_LOGIN_ATTEMPTS - ($attempts['attempt_count'] + 1);
                     if ($remaining > 0) {
-                        $login_error = "Wrong email or password. {$remaining} attempt(s) remaining.";
+                        $login_error = "Wrong credentials or password. {$remaining} attempt(s) remaining.";
                     } else {
                         $login_error = "Account locked for " . LOCKOUT_MINUTES . " minutes due to too many failed attempts.";
                     }
@@ -105,13 +106,22 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['auth_action'])) {
     } elseif ($auth_action === 'register') {
         $active_auth_tab = 'register';
         $full_name = trim($_POST['full_name'] ?? '');
+        $username  = trim($_POST['username'] ?? '');
         $email     = trim($_POST['email'] ?? '');
         $password  = $_POST['password'] ?? '';
 
         if ($full_name === '' || mb_strlen($full_name) < 2) {
             $reg_error = "Please enter your full name.";
         } elseif (mb_strlen($full_name) > 100) {
-            $reg_error = "Name must be under 100 characters.";
+            $reg_error = "Full name must be under 100 characters.";
+        } elseif (!preg_match("/^[a-zA-Z\s'-]+$/u", $full_name)) {
+            $reg_error = "Full name can only contain letters, spaces, and hyphens.";
+        } elseif ($username === '' || mb_strlen($username) < 3 || mb_strlen($username) > 30) {
+            $reg_error = "Username must be between 3 and 30 characters.";
+        } elseif (!preg_match('/^[a-zA-Z0-9_-]+$/', $username)) {
+            $reg_error = "Username can only contain letters, numbers, underscores, and hyphens.";
+        } elseif (ctype_digit($username)) {
+            $reg_error = "Username cannot consist of numbers only.";
         } elseif ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $reg_error = "Please enter a valid email address.";
         } elseif (strlen($password) < 8) {
@@ -123,40 +133,53 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['auth_action'])) {
         } elseif (!preg_match('/[a-z]/', $password)) {
             $reg_error = "Password needs at least one lowercase letter.";
         } else {
-            $check_stmt = $conn->prepare("SELECT user_id FROM users WHERE LOWER(email) = ? LIMIT 1");
-            $email_lc = mb_strtolower($email);
-            $check_stmt->bind_param("s", $email_lc);
-            $check_stmt->execute();
-            if ($check_stmt->get_result()->num_rows > 0) {
-                $check_stmt->close();
-                $reg_error = "Email already registered. Please log in.";
+            // Check username uniqueness
+            $u_stmt = $conn->prepare("SELECT user_id FROM users WHERE LOWER(username) = ? LIMIT 1");
+            $u_lc = mb_strtolower($username);
+            $u_stmt->bind_param("s", $u_lc);
+            $u_stmt->execute();
+            if ($u_stmt->get_result()->num_rows > 0) {
+                $u_stmt->close();
+                $reg_error = "Username is already taken. Please choose another.";
             } else {
-                $check_stmt->close();
-                $hashed = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
-                $clean_name = strip_tags($full_name);
-
-                $ins = $conn->prepare("
-                    INSERT INTO users (full_name, name, email, password, role, status, is_verified, is_active)
-                    VALUES (?, ?, ?, ?, 'user', 'active', 0, 1)
-                ");
-                $ins->bind_param("ssss", $clean_name, $clean_name, $email_lc, $hashed);
-
-                if ($ins->execute()) {
-                    $new_user_id = $ins->insert_id;
-                    $ins->close();
-
-                    $_SESSION['user_id']       = (int)$new_user_id;
-                    $_SESSION['name']          = $clean_name;
-                    $_SESSION['email']         = $email_lc;
-                    $_SESSION['role']          = 'user';
-                    $_SESSION['last_activity'] = time();
-                    $_SESSION['fingerprint']   = hash('sha256', $_SERVER['HTTP_USER_AGENT'] ?? '');
-
-                    header("Location: pages/dashboard.php");
-                    exit();
+                $u_stmt->close();
+                // Check email uniqueness
+                $check_stmt = $conn->prepare("SELECT user_id FROM users WHERE LOWER(email) = ? LIMIT 1");
+                $email_lc = mb_strtolower($email);
+                $check_stmt->bind_param("s", $email_lc);
+                $check_stmt->execute();
+                if ($check_stmt->get_result()->num_rows > 0) {
+                    $check_stmt->close();
+                    $reg_error = "Email already registered. Please log in.";
                 } else {
-                    $ins->close();
-                    $reg_error = "System error during registration. Please try again.";
+                    $check_stmt->close();
+                    $hashed = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
+                    $clean_name  = strip_tags($full_name);
+                    $clean_uname = strip_tags($username);
+
+                    $ins = $conn->prepare("
+                        INSERT INTO users (full_name, username, name, email, password, role, status, is_verified, is_active)
+                        VALUES (?, ?, ?, ?, ?, 'user', 'active', 0, 1)
+                    ");
+                    $ins->bind_param("sssss", $clean_name, $clean_uname, $clean_name, $email_lc, $hashed);
+
+                    if ($ins->execute()) {
+                        $new_user_id = $ins->insert_id;
+                        $ins->close();
+
+                        $_SESSION['user_id']       = (int)$new_user_id;
+                        $_SESSION['name']          = $clean_name;
+                        $_SESSION['email']         = $email_lc;
+                        $_SESSION['role']          = 'user';
+                        $_SESSION['last_activity'] = time();
+                        $_SESSION['fingerprint']   = hash('sha256', $_SERVER['HTTP_USER_AGENT'] ?? '');
+
+                        header("Location: pages/dashboard.php");
+                        exit();
+                    } else {
+                        $ins->close();
+                        $reg_error = "System error during registration. Please try again.";
+                    }
                 }
             }
         }
@@ -972,8 +995,8 @@ body > * { position: relative; z-index: 1; }
                 <input type="hidden" name="active_tab" value="login">
 
                 <div class="auth-field">
-                    <label>Email address</label>
-                    <input type="email" name="email" required autocomplete="off" placeholder="name@example.com">
+                    <label>Email address or Username</label>
+                    <input type="text" name="email" required autocomplete="off" placeholder="name@example.com or username">
                 </div>
 
                 <div class="auth-field">
@@ -1011,6 +1034,11 @@ body > * { position: relative; z-index: 1; }
                 <div class="auth-field">
                     <label>Full Name</label>
                     <input type="text" name="full_name" required autocomplete="off" placeholder="John Doe" maxlength="100">
+                </div>
+
+                <div class="auth-field">
+                    <label>Username</label>
+                    <input type="text" name="username" required autocomplete="off" placeholder="e.g. alex_99" maxlength="30" pattern="[a-zA-Z0-9_-]{3,30}" title="3-30 characters (letters, numbers, underscores, hyphens)">
                 </div>
 
                 <div class="auth-field">
