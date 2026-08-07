@@ -931,7 +931,7 @@ body > * { position: relative; z-index: 1; }
 </section>
 
 <!-- AUTH MODAL -->
-<?php $modal_open = (!empty($login_error) || !empty($reg_error) || !empty($_GET['auth'])); ?>
+<?php $modal_open = (!empty($login_error) || !empty($reg_error)); ?>
 <div class="auth-overlay <?php echo $modal_open ? 'open' : ''; ?>" id="authOverlay" onclick="if(event.target===this) closeAuthModal()">
     <div class="auth-card">
         <button class="auth-close" onclick="closeAuthModal()" aria-label="Close modal">✕</button>
@@ -1064,6 +1064,12 @@ function calculateSavings() {
     }
 
     document.getElementById('totalResult').textContent = 'KES ' + total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Clean URL query on load so refresh never opens modal automatically
+if (window.history.replaceState && window.location.search.includes('auth=')) {
+    const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+    window.history.replaceState({path: cleanUrl}, '', cleanUrl);
 }
 
 // Modal & Auth Tab Switcher
