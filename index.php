@@ -697,7 +697,9 @@ body > * { position: relative; z-index: 1; }
     text-align: center;
     font-size: 13px;
     color: var(--text-2);
-    margin-top: 18px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
 }
 
 .auth-toggle-msg a {
@@ -705,8 +707,9 @@ body > * { position: relative; z-index: 1; }
     font-weight: 700;
     text-decoration: none;
     cursor: pointer;
+    margin-left: 4px;
 }
-.auth-toggle-msg a:hover { text-decoration: underline; }
+.auth-toggle-msg a:hover { text-decoration: underline; color: var(--accent-2); }
 
 .auth-error {
     background: var(--red-dim);
@@ -936,11 +939,6 @@ body > * { position: relative; z-index: 1; }
     <div class="auth-card">
         <button class="auth-close" onclick="closeAuthModal()" aria-label="Close modal">✕</button>
 
-        <div class="auth-switcher">
-            <button class="auth-tab-btn <?php echo ($active_auth_tab !== 'register') ? 'active' : ''; ?>" id="tabBtnLogin" onclick="switchAuthTab('login')">Sign In</button>
-            <button class="auth-tab-btn <?php echo ($active_auth_tab === 'register') ? 'active' : ''; ?>" id="tabBtnRegister" onclick="switchAuthTab('register')">Register</button>
-        </div>
-
         <!-- LOGIN VIEW -->
         <div class="auth-view <?php echo ($active_auth_tab !== 'register') ? 'active' : ''; ?>" id="viewLogin">
             <h2 style="font-family:var(--font-head);font-size:22px;font-weight:700;margin-bottom:4px;color:var(--text-1);">Welcome back</h2>
@@ -1084,10 +1082,10 @@ function closeAuthModal() {
 
 function switchAuthTab(tab) {
     const isReg = tab === 'register';
-    document.getElementById('viewLogin').classList.toggle('active', !isReg);
-    document.getElementById('viewRegister').classList.toggle('active', isReg);
-    document.getElementById('tabBtnLogin').classList.toggle('active', !isReg);
-    document.getElementById('tabBtnRegister').classList.toggle('active', isReg);
+    const viewLogin = document.getElementById('viewLogin');
+    const viewRegister = document.getElementById('viewRegister');
+    if (viewLogin) viewLogin.classList.toggle('active', !isReg);
+    if (viewRegister) viewRegister.classList.toggle('active', isReg);
 }
 
 function checkAuthStrength(val) {
