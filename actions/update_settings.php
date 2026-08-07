@@ -3,7 +3,6 @@ session_start();
 include __DIR__ . '/../core/db.php';
 require_once __DIR__ . '/../core/csrf.php';
 
-
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../auth/login.php");
     exit();
@@ -15,29 +14,37 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit();
 }
 
-
 csrf_verify();
 
-$user_id  = (int) $_SESSION['user_id'];
-$email    = trim($_POST['email']    ?? '');
-$phone    = trim($_POST['phone']    ?? '');
-$language = trim($_POST['language'] ?? 'en');
-$theme    = trim($_POST['theme']    ?? 'light');
-
+$user_id   = (int) $_SESSION['user_id'];
+$full_name = trim($_POST['full_name'] ?? '');
+$email     = trim($_POST['email']     ?? '');
+$phone     = trim($_POST['phone']     ?? '');
+$language  = trim($_POST['language']  ?? 'en');
+$theme     = trim($_POST['theme']     ?? 'dark');
 
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     header("Location: ../pages/settings.php?error=invalid_email");
     exit();
 }
 
+// Email uniqueness check
+$check_stmt = $conn->prepare("SELECT user_id FROM users WHERE email=? AND user_id != ?");
+$check_stmt->bind_param("si", $email, $user_id);
+$check_stmt->execute();
+if ($check_stmt->get_result()->num_rows > 0) {
+    $check_stmt->close();
+    header("Location: ../pages/settings.php?error=email_exists");
+    exit();
+}
+$check_stmt->close();
 
 $allowed_languages = ['en', 'fr', 'sw', 'ar'];
 $allowed_themes    = ['light', 'dark', 'auto'];
 $language = in_array($language, $allowed_languages) ? $language : 'en';
-$theme    = in_array($theme,    $allowed_themes)    ? $theme    : 'light';
+$theme    = in_array($theme,    $allowed_themes)    ? $theme    : 'dark';
 
 $profile_pic = null;
-
 
 if (!empty($_FILES['profile_pic']['name'])) {
     $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
@@ -69,17 +76,31 @@ if (!empty($_FILES['profile_pic']['name'])) {
     }
 }
 
+if ($full_name !== '') {
+    $_SESSION['name'] = $full_name;
+}
+$_SESSION['email'] = $email;
 
 if ($profile_pic) {
-    $stmt = $conn->prepare("UPDATE users SET email=?, phone=?, language=?, theme=?, profile_pic=? WHERE user_id=?");
-    $stmt->bind_param("sssssi", $email, $phone, $language, $theme, $profile_pic, $user_id);
+    if ($full_name !== '') {
+        $stmt = $conn->prepare("UPDATE users SET full_name=?, name=?, email=?, phone=?, language=?, theme=?, profile_pic=? WHERE user_id=?");
+        $stmt->bind_param("sssssssi", $full_name, $full_name, $email, $phone, $language, $theme, $profile_pic, $user_id);
+    } else {
+        $stmt = $conn->prepare("UPDATE users SET email=?, phone=?, language=?, theme=?, profile_pic=? WHERE user_id=?");
+        $stmt->bind_param("sssssi", $email, $phone, $language, $theme, $profile_pic, $user_id);
+    }
 } else {
-    $stmt = $conn->prepare("UPDATE users SET email=?, phone=?, language=?, theme=? WHERE user_id=?");
-    $stmt->bind_param("ssssi", $email, $phone, $language, $theme, $user_id);
+    if ($full_name !== '') {
+        $stmt = $conn->prepare("UPDATE users SET full_name=?, name=?, email=?, phone=?, language=?, theme=? WHERE user_id=?");
+        $stmt->bind_param("ssssssi", $full_name, $full_name, $email, $phone, $language, $theme, $user_id);
+    } else {
+        $stmt = $conn->prepare("UPDATE users SET email=?, phone=?, language=?, theme=? WHERE user_id=?");
+        $stmt->bind_param("ssssi", $email, $phone, $language, $theme, $user_id);
+    }
 }
 
 $stmt->execute();
 $stmt->close();
 
 header("Location: ../pages/settings.php?success=1");
-exit();
+exit();

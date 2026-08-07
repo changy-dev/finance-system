@@ -340,21 +340,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <?php endif; ?>
 
     <?php if (!$success): ?>
-    <form method="POST" id="regForm">
+    <form method="POST" id="regForm" autocomplete="off">
         <div id="clientError" class="error-msg" style="display:none;"></div>
         <div class="input-group">
             <label>Full Name</label>
-            <input type="text" name="full_name" id="fullNameInput" required placeholder="John Doe" maxlength="100"
+            <input type="text" name="full_name" id="fullNameInput" required placeholder="John Doe" maxlength="100" autocomplete="off"
                    value="<?= htmlspecialchars($_POST['full_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
         </div>
         <div class="input-group">
             <label>Email Address</label>
-            <input type="email" name="email" id="emailInput" required placeholder="example@gmail.com"
+            <input type="email" name="email" id="emailInput" required placeholder="example@gmail.com" autocomplete="off"
                    value="<?= htmlspecialchars($_POST['email'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
         </div>
         <div class="input-group">
             <label>Create Password</label>
-            <input type="password" name="password" id="pwdInput" required placeholder="At least 8 characters" oninput="checkStrength(this.value)">
+            <input type="password" name="password" id="pwdInput" required placeholder="At least 8 characters" autocomplete="new-password" oninput="checkStrength(this.value)">
             <div class="strength-bar"><div class="strength-fill" id="strengthFill"></div></div>
             <div class="strength-label" id="strengthLabel">Enter a password</div>
             <div class="requirements" id="reqs">

@@ -405,17 +405,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             <div class="error-box"><?= htmlspecialchars($error) ?></div>
         <?php endif; ?>
 
-        <form method="POST" action="" id="loginForm" novalidate>
+        <form method="POST" action="" id="loginForm" autocomplete="off" novalidate>
             <div class="form-group">
                 <label for="email">Email address</label>
                 <input
                     type="email"
                     id="email"
                     name="email"
-                    value="<?= htmlspecialchars($_POST['email'] ?? '') ?>"
+                    value=""
                     required
-                    autocomplete="email"
-                    autofocus
+                    autocomplete="off"
                 >
                 <div class="field-error" id="emailError" style="display:none;color:var(--red);font-size:12px;margin-top:5px;"></div>
             </div>
@@ -427,7 +426,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     id="password"
                     name="password"
                     required
-                    autocomplete="current-password"
+                    autocomplete="new-password"
                 >
                 <div class="field-error" id="passwordError" style="display:none;color:var(--red);font-size:12px;margin-top:5px;"></div>
             </div>
