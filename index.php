@@ -164,7 +164,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['auth_action'])) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -178,50 +178,72 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['auth_action'])) {
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
 :root {
-    --page: #080b12;
-    --surface: #0e1422;
-    --surface-2: #151c2e;
-    --surface-3: #1c2540;
-    --line: rgba(255,255,255,.08);
-    --line-2: rgba(255,255,255,.04);
-    --cyan: #00d4ff;
-    --cyan-dim: rgba(0,212,255,.12);
-    --cyan-glow: 0 0 28px rgba(0,212,255,.35);
-    --coral: #ff5e62;
-    --coral-dim: rgba(255,94,98,.12);
-    --violet: #7c3aed;
-    --green: #10f5a0;
-    --green-dim: rgba(16,245,160,.12);
-    --red: #ff4d6d;
-    --font: 'Plus Jakarta Sans', sans-serif;
-    --font-head: 'Space Grotesk', sans-serif;
-    --font-mono: 'Space Mono', monospace;
-    --text-1: rgba(255,255,255,.95);
-    --text-2: rgba(255,255,255,.6);
-    --text-3: rgba(255,255,255,.35);
+    /* ── Dashboard Matched Palette ── */
+    --page:       #F7F6F3;
+    --surface:    #FFFFFF;
+    --surface-2:  #F2F0EC;
+    --surface-3:  #EAE8E2;
+    --ink:        #1E1B4B;
+    --line:       rgba(30,27,75,.1);
+    --line-2:     rgba(30,27,75,.05);
+
+    /* ── Primary Accent: Tangerine → Rose ── */
+    --accent:      #FF6B35;
+    --accent-2:    #E8356D;
+    --accent-grad: linear-gradient(135deg, #FF6B35, #E8356D);
+    --accent-glow: 0 4px 20px rgba(255,107,53,.3);
+
+    /* ── Secondary Accents ── */
+    --cyan:        #4F46E5;
+    --cyan-dim:    rgba(79,70,229,.1);
+    --cyan-glow:   0 4px 20px rgba(79,70,229,.18);
+    --coral:       #E8356D;
+    --coral-dim:   rgba(232,53,109,.1);
+    --violet:      #7C3AED;
+
+    /* ── Semantic ── */
+    --green:       #059669;
+    --green-dim:   rgba(5,150,105,.1);
+    --red:         #E11D48;
+    --red-dim:     rgba(225,29,72,.1);
+    --amber:       #D97706;
+    --amber-dim:   rgba(217,119,6,.1);
+
+    /* ── Typography ── */
+    --font:        'Plus Jakarta Sans', sans-serif;
+    --font-head:   'Space Grotesk', sans-serif;
+    --font-mono:   'Space Mono', monospace;
+    --text-1:      #0F0F28;
+    --text-2:      rgba(15,15,40,.55);
+    --text-3:      rgba(15,15,40,.35);
+
+    /* ── Sizing & Shadow ── */
     --radius-lg: 16px;
-    --radius-xl: 24px;
-    --shadow-lg: 0 20px 60px rgba(0,0,0,.6);
+    --radius-xl: 22px;
+    --shadow:    0 1px 8px rgba(15,15,40,.08);
+    --shadow-md: 0 4px 24px rgba(15,15,40,.12);
+    --shadow-lg: 0 12px 48px rgba(15,15,40,.15);
 }
 
 body {
     font-family: var(--font);
     background: var(--page);
     color: var(--text-1);
-    font-size: 14.5px;
+    font-size: 14px;
     line-height: 1.6;
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
 }
 
+/* Subtle dashboard mesh background */
 body::before {
     content: '';
     position: fixed;
     inset: 0;
-    background: 
-        radial-gradient(ellipse 80% 50% at 20% -10%, rgba(0,212,255,.12) 0%, transparent 60%),
-        radial-gradient(ellipse 60% 40% at 85% 90%, rgba(124,58,237,.14) 0%, transparent 55%),
-        radial-gradient(ellipse 50% 50% at 50% 40%, rgba(255,94,98,.06) 0%, transparent 70%);
+    background:
+        radial-gradient(ellipse 70% 50% at 10% 0%, rgba(255,107,53,.07) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 90% 100%, rgba(79,70,229,.05) 0%, transparent 55%),
+        radial-gradient(ellipse 50% 60% at 50% 50%, rgba(232,53,109,.04) 0%, transparent 70%);
     pointer-events: none;
     z-index: 0;
 }
@@ -230,17 +252,16 @@ body > * { position: relative; z-index: 1; }
 
 /* ── NAVBAR ── */
 .navbar {
-    height: 72px;
+    height: 70px;
     padding: 0 40px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border-bottom: 1px solid var(--line);
-    background: rgba(14,20,34,.7);
-    backdrop-filter: blur(16px);
+    background: linear-gradient(90deg, #1E1B4B 0%, #16134A 100%);
     position: sticky;
     top: 0;
     z-index: 100;
+    box-shadow: 0 4px 20px rgba(30,27,75,.15);
 }
 
 .brand {
@@ -251,24 +272,24 @@ body > * { position: relative; z-index: 1; }
 }
 
 .brand-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 12px;
-    background: linear-gradient(135deg, var(--cyan), var(--violet));
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+    background: var(--accent-grad);
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: var(--cyan-glow);
+    box-shadow: 0 4px 14px rgba(255,107,53,.4);
 }
 
-.brand-icon svg { width: 22px; height: 22px; color: #fff; }
+.brand-icon svg { width: 20px; height: 20px; color: #fff; }
 
 .brand-title {
     font-family: var(--font-head);
-    font-size: 21px;
+    font-size: 20px;
     font-weight: 700;
     color: #fff;
-    letter-spacing: -.4px;
+    letter-spacing: -.3px;
 }
 
 .nav-links {
@@ -279,7 +300,7 @@ body > * { position: relative; z-index: 1; }
 }
 
 .nav-links a {
-    color: var(--text-2);
+    color: rgba(255,255,255,.7);
     text-decoration: none;
     font-weight: 500;
     font-size: 13.5px;
@@ -295,7 +316,7 @@ body > * { position: relative; z-index: 1; }
     align-items: center;
     gap: 8px;
     padding: 10px 20px;
-    border-radius: 12px;
+    border-radius: 10px;
     font-size: 13.5px;
     font-weight: 600;
     font-family: var(--font);
@@ -306,33 +327,32 @@ body > * { position: relative; z-index: 1; }
 }
 
 .btn-ghost {
-    background: transparent;
-    color: var(--text-2);
-    border: 1px solid var(--line);
+    background: rgba(255,255,255,.1);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,.15);
 }
 .btn-ghost:hover {
-    color: #fff;
-    background: var(--surface-2);
-    border-color: rgba(255,255,255,.2);
+    background: rgba(255,255,255,.2);
+    border-color: rgba(255,255,255,.3);
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, var(--cyan), #0099cc);
-    color: #080b12;
-    box-shadow: var(--cyan-glow);
+    background: var(--accent-grad);
+    color: #fff;
+    box-shadow: var(--accent-glow);
     border: none;
 }
 .btn-primary:hover {
-    filter: brightness(1.1);
-    transform: translateY(-2px);
-    box-shadow: 0 8px 30px rgba(0,212,255,.45);
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(255,107,53,.4);
 }
 
-.btn-lg { padding: 14px 28px; font-size: 15px; border-radius: 14px; }
+.btn-lg { padding: 13px 26px; font-size: 14.5px; border-radius: 12px; }
 
 /* ── HERO SECTION ── */
 .hero {
-    padding: 90px 40px 60px;
+    padding: 80px 40px 60px;
     max-width: 1200px;
     margin: 0 auto;
     text-align: center;
@@ -344,38 +364,36 @@ body > * { position: relative; z-index: 1; }
     gap: 8px;
     padding: 6px 16px;
     border-radius: 999px;
-    background: rgba(0,212,255,.08);
-    border: 1px solid rgba(0,212,255,.25);
-    color: var(--cyan);
-    font-size: 12.5px;
-    font-weight: 600;
-    margin-bottom: 24px;
+    background: var(--accent-lt);
+    border: 1px solid rgba(255,107,53,.25);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 20px;
 }
 
 .hero-title {
     font-family: var(--font-head);
-    font-size: 56px;
+    font-size: 52px;
     font-weight: 800;
-    line-height: 1.15;
-    letter-spacing: -1.5px;
+    line-height: 1.18;
+    letter-spacing: -1.2px;
     max-width: 900px;
-    margin: 0 auto 20px;
-    background: linear-gradient(180deg, #ffffff 40%, rgba(255,255,255,.7));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    margin: 0 auto 18px;
+    color: var(--text-1);
 }
 
 .hero-title span {
-    background: linear-gradient(135deg, var(--cyan), var(--violet));
+    background: var(--accent-grad);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 
 .hero-sub {
-    font-size: 18px;
+    font-size: 17px;
     color: var(--text-2);
-    max-width: 680px;
-    margin: 0 auto 36px;
+    max-width: 660px;
+    margin: 0 auto 34px;
     font-weight: 400;
 }
 
@@ -384,16 +402,16 @@ body > * { position: relative; z-index: 1; }
     align-items: center;
     justify-content: center;
     gap: 16px;
-    margin-bottom: 60px;
+    margin-bottom: 50px;
 }
 
 /* ── DEMO DASHBOARD GRAPHIC ── */
 .dashboard-preview {
     background: var(--surface);
-    border: 1px solid rgba(255,255,255,.12);
+    border: 1px solid var(--line);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-lg);
-    padding: 28px;
+    padding: 26px;
     max-width: 1040px;
     margin: 0 auto;
     text-align: left;
@@ -421,48 +439,49 @@ body > * { position: relative; z-index: 1; }
     margin-bottom: 16px;
 }
 
-.preview-title { font-size: 13px; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: .5px; }
+.preview-title { font-size: 12px; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: .5px; }
 
-.stat-val { font-family: var(--font-mono); font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 4px; }
-.stat-tag { font-size: 12px; color: var(--green); font-weight: 600; }
+.stat-val { font-family: var(--font-mono); font-size: 26px; font-weight: 700; color: var(--text-1); margin-bottom: 4px; }
+.stat-tag { font-size: 12px; color: var(--green); font-weight: 700; }
 
 .chart-box { height: 180px; width: 100%; position: relative; }
 
-.tx-list { display: flex; flex-direction: column; gap: 12px; }
+.tx-list { display: flex; flex-direction: column; gap: 10px; }
 
 .tx-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 10px 12px;
-    background: var(--surface-3);
+    background: var(--surface);
     border-radius: 10px;
+    border: 1px solid var(--line);
 }
 
 .tx-left { display: flex; align-items: center; gap: 10px; }
-.tx-icon { width: 32px; height: 32px; border-radius: 8px; background: rgba(0,212,255,.12); color: var(--cyan); display: flex; align-items: center; justify-content: center; font-size: 14px; }
-.tx-name { font-size: 13px; font-weight: 600; color: #fff; }
+.tx-icon { width: 32px; height: 32px; border-radius: 8px; background: rgba(79,70,229,.1); color: var(--cyan); display: flex; align-items: center; justify-content: center; font-size: 14px; }
+.tx-name { font-size: 13px; font-weight: 600; color: var(--text-1); }
 .tx-date { font-size: 11px; color: var(--text-3); }
 .tx-amt { font-family: var(--font-mono); font-weight: 700; font-size: 13px; }
 .tx-amt.income { color: var(--green); }
-.tx-amt.expense { color: var(--coral); }
+.tx-amt.expense { color: var(--red); }
 
 /* ── FEATURES GRID ── */
 .features-section {
-    padding: 90px 40px;
+    padding: 80px 40px;
     max-width: 1200px;
     margin: 0 auto;
 }
 
 .section-hd {
     text-align: center;
-    margin-bottom: 56px;
+    margin-bottom: 50px;
 }
 
 .section-badge {
-    font-size: 12px;
+    font-size: 11.5px;
     font-weight: 700;
-    color: var(--cyan);
+    color: var(--accent);
     text-transform: uppercase;
     letter-spacing: 1px;
     margin-bottom: 8px;
@@ -470,10 +489,10 @@ body > * { position: relative; z-index: 1; }
 
 .section-title {
     font-family: var(--font-head);
-    font-size: 36px;
+    font-size: 34px;
     font-weight: 700;
-    color: #fff;
-    letter-spacing: -.6px;
+    color: var(--text-1);
+    letter-spacing: -.5px;
 }
 
 .features-grid {
@@ -486,93 +505,94 @@ body > * { position: relative; z-index: 1; }
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--radius-xl);
-    padding: 28px 24px;
+    padding: 26px 22px;
+    box-shadow: var(--shadow);
     transition: transform .25s, border-color .25s, box-shadow .25s;
 }
 
 .feature-card:hover {
     transform: translateY(-4px);
-    border-color: rgba(0,212,255,.3);
-    box-shadow: 0 12px 32px rgba(0,0,0,.4);
+    border-color: rgba(255,107,53,.3);
+    box-shadow: var(--shadow-md);
 }
 
 .feature-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 14px;
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
     background: var(--surface-2);
     border: 1px solid var(--line);
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 20px;
-    color: var(--cyan);
+    margin-bottom: 18px;
+    color: var(--accent);
 }
 
-.feature-icon svg { width: 24px; height: 24px; }
+.feature-icon svg { width: 22px; height: 22px; }
 
-.feature-h { font-size: 17px; font-weight: 700; color: #fff; margin-bottom: 8px; }
-.feature-p { font-size: 13.5px; color: var(--text-2); line-height: 1.5; }
+.feature-h { font-size: 16px; font-weight: 700; color: var(--text-1); margin-bottom: 6px; }
+.feature-p { font-size: 13px; color: var(--text-2); line-height: 1.5; }
 
 /* ── CALCULATOR / PROJECTION SECTION ── */
 .calc-section {
-    padding: 60px 40px 90px;
+    padding: 50px 40px 80px;
     max-width: 1040px;
     margin: 0 auto;
 }
 
 .calc-card {
-    background: linear-gradient(145deg, var(--surface-2), var(--surface));
-    border: 1px solid rgba(255,255,255,.12);
+    background: var(--surface);
+    border: 1px solid var(--line);
     border-radius: var(--radius-xl);
-    padding: 40px;
+    padding: 38px;
+    box-shadow: var(--shadow-lg);
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 40px;
     align-items: center;
 }
 
-.calc-title { font-family: var(--font-head); font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 10px; }
-.calc-desc { font-size: 14px; color: var(--text-2); margin-bottom: 24px; }
+.calc-title { font-family: var(--font-head); font-size: 26px; font-weight: 700; color: var(--text-1); margin-bottom: 8px; }
+.calc-desc { font-size: 13.5px; color: var(--text-2); margin-bottom: 22px; }
 
-.calc-input-group { margin-bottom: 20px; }
-.calc-label { display: block; font-size: 12px; font-weight: 700; color: var(--text-2); text-transform: uppercase; margin-bottom: 8px; }
-.calc-range { width: 100%; accent-color: var(--cyan); }
-.calc-val-display { font-family: var(--font-mono); font-size: 18px; font-weight: 700; color: var(--cyan); margin-top: 4px; }
+.calc-input-group { margin-bottom: 18px; }
+.calc-label { display: block; font-size: 11.5px; font-weight: 700; color: var(--text-2); text-transform: uppercase; margin-bottom: 8px; }
+.calc-range { width: 100%; accent-color: var(--accent); }
+.calc-val-display { font-family: var(--font-mono); font-size: 17px; font-weight: 700; color: var(--accent); margin-top: 4px; }
 
 .calc-result-box {
-    background: var(--surface-3);
+    background: var(--surface-2);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
-    padding: 28px;
+    padding: 26px;
     text-align: center;
 }
 
-.calc-result-lbl { font-size: 12px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
-.calc-result-val { font-family: var(--font-mono); font-size: 38px; font-weight: 800; color: var(--green); letter-spacing: -1px; margin-bottom: 12px; }
+.calc-result-lbl { font-size: 11.5px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+.calc-result-val { font-family: var(--font-mono); font-size: 36px; font-weight: 800; color: var(--green); letter-spacing: -1px; margin-bottom: 10px; }
 
 /* ── CTA BANNER ── */
 .cta-banner {
-    background: linear-gradient(135deg, rgba(0,212,255,.15), rgba(124,58,237,.25));
-    border: 1px solid rgba(0,212,255,.3);
+    background: linear-gradient(135deg, #1E1B4B, #16134A);
     border-radius: var(--radius-xl);
-    padding: 60px 40px;
+    padding: 56px 40px;
     max-width: 1040px;
-    margin: 0 auto 90px;
+    margin: 0 auto 80px;
     text-align: center;
-    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+    box-shadow: var(--shadow-lg);
 }
 
-.cta-h { font-family: var(--font-head); font-size: 34px; font-weight: 800; color: #fff; margin-bottom: 12px; }
-.cta-p { font-size: 16px; color: var(--text-2); max-width: 540px; margin: 0 auto 28px; }
+.cta-h { font-family: var(--font-head); font-size: 32px; font-weight: 800; color: #fff; margin-bottom: 10px; }
+.cta-p { font-size: 15px; color: rgba(255,255,255,.7); max-width: 520px; margin: 0 auto 26px; }
 
 /* ── INTEGRATED AUTH MODAL ── */
 .auth-overlay {
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,.75);
-    backdrop-filter: blur(12px);
+    background: rgba(15,15,40,.5);
+    backdrop-filter: blur(8px);
     z-index: 999;
     align-items: center;
     justify-content: center;
@@ -582,10 +602,10 @@ body > * { position: relative; z-index: 1; }
 
 .auth-card {
     background: var(--surface);
-    border: 1px solid rgba(255,255,255,.15);
+    border: 1px solid var(--line);
     border-radius: var(--radius-xl);
     width: 100%;
-    max-width: 440px;
+    max-width: 420px;
     padding: 32px 28px;
     box-shadow: var(--shadow-lg);
     position: relative;
@@ -596,10 +616,10 @@ body > * { position: relative; z-index: 1; }
 
 .auth-close {
     position: absolute;
-    top: 20px;
-    right: 20px;
-    width: 32px;
-    height: 32px;
+    top: 18px;
+    right: 18px;
+    width: 30px;
+    height: 30px;
     border-radius: 8px;
     background: var(--surface-2);
     border: 1px solid var(--line);
@@ -610,24 +630,24 @@ body > * { position: relative; z-index: 1; }
     justify-content: center;
     transition: all .15s;
 }
-.auth-close:hover { background: var(--surface-3); color: #fff; }
+.auth-close:hover { background: var(--surface-3); color: var(--text-1); }
 
 .auth-switcher {
     display: flex;
     background: var(--surface-2);
-    padding: 4px;
-    border-radius: 12px;
-    margin-bottom: 24px;
+    padding: 3px;
+    border-radius: 10px;
+    margin-bottom: 22px;
     border: 1px solid var(--line);
 }
 
 .auth-tab-btn {
     flex: 1;
-    padding: 10px;
+    padding: 9px;
     border: none;
     background: transparent;
     color: var(--text-2);
-    font-size: 13.5px;
+    font-size: 13px;
     font-weight: 700;
     font-family: var(--font);
     cursor: pointer;
@@ -636,9 +656,9 @@ body > * { position: relative; z-index: 1; }
 }
 
 .auth-tab-btn.active {
-    background: var(--surface-3);
-    color: var(--cyan);
-    box-shadow: 0 2px 8px rgba(0,0,0,.3);
+    background: var(--surface);
+    color: var(--accent);
+    box-shadow: var(--shadow);
 }
 
 .auth-view { display: none; }
@@ -646,35 +666,35 @@ body > * { position: relative; z-index: 1; }
 
 .auth-field { margin-bottom: 16px; text-align: left; }
 .auth-field label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--text-2); margin-bottom: 6px; }
-.auth-field input { width: 100%; padding: 11px 14px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface-2); color: #fff; font-size: 14px; font-family: var(--font); outline: none; transition: border-color .15s, box-shadow .15s; }
-.auth-field input:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px var(--cyan-dim); background: var(--surface); }
+.auth-field input { width: 100%; padding: 10px 13px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--text-1); font-size: 14px; font-family: var(--font); outline: none; transition: border-color .15s, box-shadow .15s, background .15s; }
+.auth-field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255,107,53,.1); background: var(--surface); }
 
 .auth-submit-btn {
     width: 100%;
     padding: 12px;
     border-radius: 10px;
     border: none;
-    background: linear-gradient(135deg, var(--cyan), #0099cc);
-    color: #080b12;
-    font-size: 14.5px;
+    background: var(--accent-grad);
+    color: #fff;
+    font-size: 14px;
     font-weight: 700;
     font-family: var(--font);
     cursor: pointer;
-    box-shadow: var(--cyan-glow);
-    margin-top: 8px;
+    box-shadow: var(--accent-glow);
+    margin-top: 6px;
     transition: all .18s;
 }
-.auth-submit-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.auth-submit-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
 
 .auth-toggle-msg {
     text-align: center;
     font-size: 13px;
     color: var(--text-2);
-    margin-top: 20px;
+    margin-top: 18px;
 }
 
 .auth-toggle-msg a {
-    color: var(--cyan);
+    color: var(--accent);
     font-weight: 700;
     text-decoration: none;
     cursor: pointer;
@@ -682,8 +702,8 @@ body > * { position: relative; z-index: 1; }
 .auth-toggle-msg a:hover { text-decoration: underline; }
 
 .auth-error {
-    background: rgba(255,77,109,.12);
-    border: 1px solid rgba(255,77,109,.3);
+    background: var(--red-dim);
+    border: 1px solid rgba(225,29,72,.25);
     color: var(--red);
     padding: 10px 14px;
     border-radius: 10px;
@@ -698,7 +718,7 @@ body > * { position: relative; z-index: 1; }
 /* ── FOOTER ── */
 .footer {
     border-top: 1px solid var(--line);
-    padding: 40px 40px;
+    padding: 36px 40px;
     text-align: center;
     color: var(--text-3);
     font-size: 13px;
@@ -758,7 +778,7 @@ body > * { position: relative; z-index: 1; }
             <a href="pages/dashboard.php" class="btn btn-primary btn-lg">Open Your Dashboard →</a>
         <?php else: ?>
             <button onclick="openAuthModal('register')" class="btn btn-primary btn-lg">Create Free Account →</button>
-            <button onclick="openAuthModal('login')" class="btn btn-ghost btn-lg">Sign In to Account</button>
+            <button onclick="openAuthModal('login')" class="btn btn-ghost btn-lg" style="color:var(--text-1);border-color:var(--line);">Sign In to Account</button>
         <?php endif; ?>
     </div>
 
@@ -769,7 +789,7 @@ body > * { position: relative; z-index: 1; }
                 <div class="preview-header">
                     <div>
                         <div class="preview-title">Total Net Worth Overview</div>
-                        <div class="stat-val">$4,556,000.00</div>
+                        <div class="stat-val">KES 4,556,000.00</div>
                     </div>
                     <div class="stat-tag">+12.4% this month</div>
                 </div>
@@ -790,27 +810,27 @@ body > * { position: relative; z-index: 1; }
                                     <div class="tx-date">Today</div>
                                 </div>
                             </div>
-                            <div class="tx-amt income">+$15,000</div>
+                            <div class="tx-amt income">+KES 15,000</div>
                         </div>
                         <div class="tx-item">
                             <div class="tx-left">
-                                <div class="tx-icon" style="background:rgba(255,94,98,.12);color:var(--coral);">☕</div>
+                                <div class="tx-icon" style="background:var(--red-dim);color:var(--red);">☕</div>
                                 <div>
                                     <div class="tx-name">Dining Out</div>
                                     <div class="tx-date">Yesterday</div>
                                 </div>
                             </div>
-                            <div class="tx-amt expense">-$350</div>
+                            <div class="tx-amt expense">-KES 350</div>
                         </div>
                         <div class="tx-item">
                             <div class="tx-left">
-                                <div class="tx-icon" style="background:rgba(124,58,237,.12);color:var(--violet);">🏠</div>
+                                <div class="tx-icon" style="background:var(--cyan-dim);color:var(--cyan);">🏠</div>
                                 <div>
                                     <div class="tx-name">Savings Goal</div>
                                     <div class="tx-date">3 days ago</div>
                                 </div>
                             </div>
-                            <div class="tx-amt income">+$1,000</div>
+                            <div class="tx-amt income">+KES 1,000</div>
                         </div>
                     </div>
                 </div>
@@ -870,9 +890,9 @@ body > * { position: relative; z-index: 1; }
             <p class="calc-desc">Adjust monthly contributions to see how fast your wealth accumulates over time.</p>
 
             <div class="calc-input-group">
-                <label class="calc-label">Monthly Deposit ($)</label>
-                <input type="range" class="calc-range" id="monthlyInput" min="100" max="5000" step="100" value="500" oninput="calculateSavings()">
-                <div class="calc-val-display" id="monthlyVal">$500 / mo</div>
+                <label class="calc-label">Monthly Deposit (KES)</label>
+                <input type="range" class="calc-range" id="monthlyInput" min="1000" max="100000" step="1000" value="10000" oninput="calculateSavings()">
+                <div class="calc-val-display" id="monthlyVal">KES 10,000 / mo</div>
             </div>
 
             <div class="calc-input-group">
@@ -884,7 +904,7 @@ body > * { position: relative; z-index: 1; }
 
         <div class="calc-result-box">
             <div class="calc-result-lbl">Projected Savings Balance</div>
-            <div class="calc-result-val" id="totalResult">$19,440.00</div>
+            <div class="calc-result-val" id="totalResult">KES 400,000.00</div>
             <p style="font-size:12px;color:var(--text-3);">Based on steady savings + estimated 7% compound growth.</p>
         </div>
     </div>
@@ -916,7 +936,7 @@ body > * { position: relative; z-index: 1; }
 
         <!-- LOGIN VIEW -->
         <div class="auth-view <?php echo ($active_auth_tab !== 'register') ? 'active' : ''; ?>" id="viewLogin">
-            <h2 style="font-family:var(--font-head);font-size:22px;font-weight:700;margin-bottom:4px;color:#fff;">Welcome back</h2>
+            <h2 style="font-family:var(--font-head);font-size:22px;font-weight:700;margin-bottom:4px;color:var(--text-1);">Welcome back</h2>
             <p style="font-size:13px;color:var(--text-2);margin-bottom:20px;">Sign in to your Fintrack account</p>
 
             <?php if (!empty($login_error)): ?>
@@ -948,7 +968,7 @@ body > * { position: relative; z-index: 1; }
 
         <!-- REGISTER VIEW -->
         <div class="auth-view <?php echo ($active_auth_tab === 'register') ? 'active' : ''; ?>" id="viewRegister">
-            <h2 style="font-family:var(--font-head);font-size:22px;font-weight:700;margin-bottom:4px;color:#fff;">Create an account</h2>
+            <h2 style="font-family:var(--font-head);font-size:22px;font-weight:700;margin-bottom:4px;color:var(--text-1);">Create an account</h2>
             <p style="font-size:13px;color:var(--text-2);margin-bottom:20px;">Start your financial journey today</p>
 
             <?php if (!empty($reg_error)): ?>
@@ -1000,15 +1020,15 @@ new Chart(ctx, {
     data: {
         labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
         datasets: [{
-            label: 'Net Worth ($)',
-            data: [3200000, 3500000, 3900000, 4056000, 4300000, 4556000],
-            borderColor: '#00d4ff',
+            label: 'Expense Trend',
+            data: [12000, 15000, 19000, 22000, 18000, 25000],
+            borderColor: '#FF6B35',
             borderWidth: 3,
-            backgroundColor: 'rgba(0, 212, 255, 0.1)',
+            backgroundColor: 'rgba(255, 107, 53, 0.08)',
             fill: true,
             tension: 0.4,
             pointRadius: 4,
-            pointBackgroundColor: '#00d4ff'
+            pointBackgroundColor: '#FF6B35'
         }]
     },
     options: {
@@ -1016,8 +1036,8 @@ new Chart(ctx, {
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-            x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: 'rgba(255,255,255,0.4)' } },
-            y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: 'rgba(255,255,255,0.4)', callback: v => '$' + (v/1000000).toFixed(1) + 'M' } }
+            x: { grid: { color: 'rgba(30,27,75,0.05)' }, ticks: { color: 'rgba(15,15,40,0.5)' } },
+            y: { grid: { color: 'rgba(30,27,75,0.05)' }, ticks: { color: 'rgba(15,15,40,0.5)', callback: v => 'KES ' + (v/1000).toFixed(0) + 'k' } }
         }
     }
 });
@@ -1026,7 +1046,7 @@ new Chart(ctx, {
 function calculateSavings() {
     const monthly = parseFloat(document.getElementById('monthlyInput').value);
     const years = parseInt(document.getElementById('yearsInput').value);
-    document.getElementById('monthlyVal').textContent = '$' + monthly.toLocaleString() + ' / mo';
+    document.getElementById('monthlyVal').textContent = 'KES ' + monthly.toLocaleString() + ' / mo';
     document.getElementById('yearsVal').textContent = years + (years === 1 ? ' Year' : ' Years');
 
     const months = years * 12;
@@ -1036,7 +1056,7 @@ function calculateSavings() {
         total = (total + monthly) * (1 + rate);
     }
 
-    document.getElementById('totalResult').textContent = '$' + total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    document.getElementById('totalResult').textContent = 'KES ' + total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 // Modal & Auth Tab Switcher
