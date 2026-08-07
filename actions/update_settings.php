@@ -1,17 +1,17 @@
 <?php
 session_start();
-include 'db.php';
-require_once 'csrf.php';
+include __DIR__ . '/../core/db.php';
+require_once __DIR__ . '/../core/csrf.php';
 
 
 if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
+    header("Location: ../auth/login.php");
     exit();
 }
 
 // ── ONLY ACCEPT POST ──────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header("Location: settings.php");
+    header("Location: ../pages/settings.php");
     exit();
 }
 
@@ -26,7 +26,7 @@ $theme    = trim($_POST['theme']    ?? 'light');
 
 
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    header("Location: settings.php?error=invalid_email");
+    header("Location: ../pages/settings.php?error=invalid_email");
     exit();
 }
 
@@ -48,23 +48,23 @@ if (!empty($_FILES['profile_pic']['name'])) {
     finfo_close($finfo);
 
     if (!in_array($mime_type, $allowed_types)) {
-        header("Location: settings.php?error=invalid_file_type");
+        header("Location: ../pages/settings.php?error=invalid_file_type");
         exit();
     }
 
     if ($_FILES['profile_pic']['size'] > $max_size) {
-        header("Location: settings.php?error=file_too_large");
+        header("Location: ../pages/settings.php?error=file_too_large");
         exit();
     }
 
     $ext         = pathinfo($_FILES['profile_pic']['name'], PATHINFO_EXTENSION);
     $safe_name   = time() . '_' . bin2hex(random_bytes(8)) . '.' . strtolower($ext);
-    $upload_path = "uploads/" . $safe_name;
+    $upload_path = __DIR__ . '/../uploads/' . $safe_name;
 
     if (move_uploaded_file($_FILES['profile_pic']['tmp_name'], $upload_path)) {
         $profile_pic = $safe_name;
     } else {
-        header("Location: settings.php?error=upload_failed");
+        header("Location: ../pages/settings.php?error=upload_failed");
         exit();
     }
 }
@@ -81,5 +81,5 @@ if ($profile_pic) {
 $stmt->execute();
 $stmt->close();
 
-header("Location: settings.php?success=1");
+header("Location: ../pages/settings.php?success=1");
 exit();

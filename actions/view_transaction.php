@@ -31,9 +31,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $stmt = $conn->prepare(
-        'SELECT id, user_id, type, category, amount, description, created_at
+        'SELECT transaction_id AS id, user_id, type, category, amount, description, created_at
          FROM transactions
-         WHERE id = ? AND user_id = ? LIMIT 1'
+         WHERE transaction_id = ? AND user_id = ? LIMIT 1'
     );
 
     if (!$stmt) {

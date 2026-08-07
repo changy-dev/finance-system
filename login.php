@@ -1,25 +1,6 @@
 <?php
-// ── TEMP DEBUG — remove after fixing ──
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-// ──────────────────────────────────────
-// ============================================================
-// CRITICAL FIXES APPLIED:
-// #1 — SQL injection: prepared statements replace raw queries
-// #3 — Brute force: login attempts tracked, lockout after 5 fails
-// #4 — Session security: regenerate ID on login, idle timeout,
-//       browser fingerprinting (stable version)
-// ============================================================
-
-session_start();
-require_once 'db.php';
-
-// Already logged in — redirect (check BEFORE touching the session)
-if (isset($_SESSION['user_id'])) {
-    header("Location: dashboard.php");
-    exit();
-}
+header("Location: auth/login.php");
+exit();
 
 // ── Session idle timeout ───────────────────────────────────
 $session_lifetime = (int)($_ENV['SESSION_LIFETIME'] ?? 1800);

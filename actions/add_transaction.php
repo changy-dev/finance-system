@@ -70,15 +70,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Storing HTML-encoded text causes double-encoding when displayed.
 
     $stmt = $conn->prepare(
-        "INSERT INTO transactions (user_id, type, category, amount, description, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)"
+        "INSERT INTO transactions (user_id, type, category, amount, description, date, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)"
     );
 
     if (!$stmt) {
         csrf_json_exit(['success' => false, 'message' => 'Database prepare failed: ' . $conn->error]);
     }
 
-    $stmt->bind_param('issdss', $user_id, $type, $category, $amount, $description, $created_at);
+    $stmt->bind_param('issdsss', $user_id, $type, $category, $amount, $description, $created_at, $created_at);
 
     if ($stmt->execute()) {
         csrf_json_exit([

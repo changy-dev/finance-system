@@ -28,7 +28,7 @@ $types  = 'i';
 
 if ($search !== '') {
     $where .= " AND (category LIKE ? OR description LIKE ?)";
-    $like = '%' . $conn->real_escape_string($search) . '%';
+    $like = '%' . $search . '%';
     $params[] = $like; $params[] = $like;
     $types .= 'ss';
 }
@@ -82,6 +82,10 @@ $net = ($stats['total_income'] ?? 0) - ($stats['total_expense'] ?? 0);
 /* ── CATEGORIES (for filter dropdown) ── */
 $cats = $conn->query("SELECT DISTINCT category FROM transactions WHERE user_id=$user_id AND is_deleted_by_user=0 ORDER BY category");
 
+/* ── DATE RANGE FOR FILTERS ── */
+$min_date = '2020-01-01';
+$max_date = date('Y-12-31');
+
 /* ── HELPERS ── */
 function display_date($row) {
     $d = $row['date'] ?? '';
@@ -104,6 +108,8 @@ function qs($extra=[]) {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
 :root {
@@ -450,6 +456,7 @@ textarea.form-control{height:auto;padding:10px 12px;resize:vertical;}
     .form-row{grid-template-columns:1fr;}
 }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 </head>
 <body>
 
@@ -514,7 +521,7 @@ textarea.form-control{height:auto;padding:10px 12px;resize:vertical;}
       <span class="nav-label">Reports</span>
     </a>
     <div class="nav-section-label">Account</div>
-    <a href="../pages/settings.php" class="nav-item">
+    <a href="/finance_system/pages/settings.php" class="nav-item">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
@@ -609,11 +616,14 @@ textarea.form-control{height:auto;padding:10px 12px;resize:vertical;}
       </div>
       <div class="filter-group">
         <label>From</label>
-        <input type="date" name="date_from" class="filter-input" value="<?php echo htmlspecialchars($date_from); ?>" onchange="this.form.submit()">
+        <input type="text" name="date_from" class="filter-input" min="<?php echo htmlspecialchars($min_date); ?>" max="<?php echo htmlspecialchars($max_date); ?>" value="<?php echo htmlspecialchars($date_from); ?>" autocomplete="off">
       </div>
       <div class="filter-group">
         <label>To</label>
-        <input type="date" name="date_to" class="filter-input" value="<?php echo htmlspecialchars($date_to); ?>" onchange="this.form.submit()">
+        <input type="text" name="date_to" class="filter-input" min="<?php echo htmlspecialchars($min_date); ?>" max="<?php echo htmlspecialchars($max_date); ?>" value="<?php echo htmlspecialchars($date_to); ?>" autocomplete="off">
+      </div>
+      <div class="filter-group" style="flex-basis:100%;font-size:11px;color:var(--text-3);padding-left:8px;line-height:1.3;">
+        Tip: click the calendar icon to select a complete date range.
       </div>
       <div class="filter-group">
         <label>&nbsp;</label>
@@ -839,14 +849,21 @@ function updateCategories() {
   sel.innerHTML = cats.map(c => `<option value="${c}"${c===cur?' selected':''}>${c}</option>`).join('');
 }
 
+function getLocalToday() {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  return now.toISOString().split('T')[0];
+}
+
 function openAddModal() {
   document.getElementById('modalTitle').textContent = 'Add Transaction';
   document.getElementById('txId').value = '';
   document.getElementById('txType').value = 'expense';
   updateCategories();
   document.getElementById('txAmount').value = '';
-  document.getElementById('txDate').max = new Date().toISOString().split('T')[0];
-  document.getElementById('txDate').value = new Date().toISOString().split('T')[0];
+  const today = getLocalToday();
+  document.getElementById('txDate').max = today;
+  document.getElementById('txDate').value = today;
   document.getElementById('txDesc').value = '';
   document.getElementById('txModal').classList.add('open');
 }
@@ -854,13 +871,15 @@ function openAddModal() {
 function openEditModal(tx) {
   document.getElementById('modalTitle').textContent = 'Edit Transaction';
   document.getElementById('txId').value = tx.transaction_id;
-  document.getElementById('txDate').max = new Date().toISOString().split('T')[0];
+  const today = getLocalToday();
+  document.getElementById('txDate').max = today;
   document.getElementById('txType').value = tx.type.toLowerCase();
   updateCategories();
   document.getElementById('txCategory').value = tx.category;
   document.getElementById('txAmount').value = tx.amount;
   // Fix 0000-00-00 dates
   let d = tx.date && tx.date !== '0000-00-00' ? tx.date : tx.created_at.split(' ')[0];
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(d)) d = today;
   document.getElementById('txDate').value = d;
   document.getElementById('txDesc').value = tx.description || '';
   document.getElementById('txModal').classList.add('open');
@@ -972,15 +991,30 @@ document.querySelectorAll('.modal-overlay').forEach(el => {
 });
 
 // Search on Enter
-document.querySelector('.search-input').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') this.closest('form').submit();
-});
+const searchInput = document.querySelector('.search-input');
+if (searchInput) {
+  searchInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') this.closest('form').submit();
+  });
+}
 
 // Show toast from URL params
 const urlMsg = new URLSearchParams(location.search).get('msg');
 if (urlMsg === 'success') showToast('Transaction deleted.', 'success');
 
 updateCategories();
+
+if (typeof flatpickr !== 'undefined') {
+  flatpickr('input[name="date_from"], input[name="date_to"], #txDate', {
+    dateFormat: 'Y-m-d',
+    minDate: '<?php echo htmlspecialchars($min_date); ?>',
+    maxDate: '<?php echo htmlspecialchars($max_date); ?>',
+    allowInput: true,
+    locale: {
+      firstDayOfWeek: 1
+    }
+  });
+}
 </script>
 </body>
 </html>
