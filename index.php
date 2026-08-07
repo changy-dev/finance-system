@@ -1,6 +1,167 @@
 <?php
 session_start();
+require_once __DIR__ . '/core/db.php';
+if (!function_exists('csrf_token')) { require_once __DIR__ . '/core/csrf.php'; }
+
 $is_logged_in = isset($_SESSION['user_id']);
+if ($is_logged_in && isset($_GET['auth'])) {
+    header("Location: pages/dashboard.php");
+    exit();
+}
+
+$login_error = "";
+$reg_error   = "";
+$active_auth_tab = $_GET['auth'] ?? ($_POST['active_tab'] ?? '');
+
+// ── BRUTE FORCE HELPERS ────────────────────────────────────
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_MINUTES = 15;
+
+function get_login_attempts(mysqli $conn, string $email): array {
+    $stmt = $conn->prepare("SELECT attempt_count, locked_until FROM login_attempts WHERE email = ?");
+    $stmt->bind_param("s", $email);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    return $row ?: ['attempt_count' => 0, 'locked_until' => null];
+}
+
+function record_failed_attempt(mysqli $conn, string $email): void {
+    $stmt = $conn->prepare("
+        INSERT INTO login_attempts (email, attempt_count, last_attempt)
+        VALUES (?, 1, NOW())
+        ON DUPLICATE KEY UPDATE
+            attempt_count = attempt_count + 1,
+            last_attempt  = NOW(),
+            locked_until  = IF(attempt_count + 1 >= ?, DATE_ADD(NOW(), INTERVAL ? MINUTE), locked_until)
+    ");
+    $max  = MAX_LOGIN_ATTEMPTS;
+    $lock = LOCKOUT_MINUTES;
+    $stmt->bind_param("sii", $email, $max, $lock);
+    $stmt->execute();
+}
+
+function clear_login_attempts(mysqli $conn, string $email): void {
+    $stmt = $conn->prepare("DELETE FROM login_attempts WHERE email = ?");
+    $stmt->bind_param("s", $email);
+    $stmt->execute();
+}
+
+// ── PROCESS AUTH ACTIONS ──────────────────────────────────
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['auth_action'])) {
+    csrf_verify();
+    $auth_action = $_POST['auth_action'];
+
+    if ($auth_action === 'login') {
+        $active_auth_tab = 'login';
+        $email    = trim($_POST['email'] ?? '');
+        $password = trim($_POST['password'] ?? '');
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $login_error = "Invalid email address.";
+        } elseif (empty($password)) {
+            $login_error = "Password is required.";
+        } else {
+            $attempts  = get_login_attempts($conn, $email);
+            $is_locked = $attempts['locked_until'] && strtotime($attempts['locked_until']) > time();
+
+            if ($is_locked) {
+                $mins  = ceil((strtotime($attempts['locked_until']) - time()) / 60);
+                $login_error = "Too many failed attempts. Try again in {$mins} minute(s).";
+            } else {
+                $stmt = $conn->prepare("SELECT user_id, full_name, name, password, role, status FROM users WHERE email = ? LIMIT 1");
+                $stmt->bind_param("s", $email);
+                $stmt->execute();
+                $user = $stmt->get_result()->fetch_assoc();
+
+                if ($user && password_verify($password, $user['password'])) {
+                    if ($user['status'] !== 'active') {
+                        $login_error = "Your account has been suspended. Contact support.";
+                    } else {
+                        $_SESSION['user_id']       = (int)$user['user_id'];
+                        $_SESSION['name']          = !empty($user['full_name']) ? $user['full_name'] : $user['name'];
+                        $_SESSION['email']         = $email;
+                        $_SESSION['role']          = $user['role'] ?? 'user';
+                        $_SESSION['last_activity'] = time();
+                        $_SESSION['fingerprint']   = hash('sha256', $_SERVER['HTTP_USER_AGENT'] ?? '');
+
+                        session_regenerate_id(false);
+                        session_write_close();
+                        clear_login_attempts($conn, $email);
+
+                        header("Location: pages/dashboard.php");
+                        exit();
+                    }
+                } else {
+                    record_failed_attempt($conn, $email);
+                    $remaining = MAX_LOGIN_ATTEMPTS - ($attempts['attempt_count'] + 1);
+                    if ($remaining > 0) {
+                        $login_error = "Wrong email or password. {$remaining} attempt(s) remaining.";
+                    } else {
+                        $login_error = "Account locked for " . LOCKOUT_MINUTES . " minutes due to too many failed attempts.";
+                    }
+                }
+            }
+        }
+    } elseif ($auth_action === 'register') {
+        $active_auth_tab = 'register';
+        $full_name = trim($_POST['full_name'] ?? '');
+        $email     = trim($_POST['email'] ?? '');
+        $password  = $_POST['password'] ?? '';
+
+        if ($full_name === '' || mb_strlen($full_name) < 2) {
+            $reg_error = "Please enter your full name.";
+        } elseif (mb_strlen($full_name) > 100) {
+            $reg_error = "Name must be under 100 characters.";
+        } elseif ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $reg_error = "Please enter a valid email address.";
+        } elseif (strlen($password) < 8) {
+            $reg_error = "Password needs at least 8 characters.";
+        } elseif (!preg_match('/[0-9]/', $password)) {
+            $reg_error = "Password needs at least one number.";
+        } elseif (!preg_match('/[A-Z]/', $password)) {
+            $reg_error = "Password needs at least one uppercase letter.";
+        } elseif (!preg_match('/[a-z]/', $password)) {
+            $reg_error = "Password needs at least one lowercase letter.";
+        } else {
+            $check_stmt = $conn->prepare("SELECT user_id FROM users WHERE LOWER(email) = ? LIMIT 1");
+            $email_lc = mb_strtolower($email);
+            $check_stmt->bind_param("s", $email_lc);
+            $check_stmt->execute();
+            if ($check_stmt->get_result()->num_rows > 0) {
+                $check_stmt->close();
+                $reg_error = "Email already registered. Please log in.";
+            } else {
+                $check_stmt->close();
+                $hashed = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
+                $clean_name = strip_tags($full_name);
+
+                $ins = $conn->prepare("
+                    INSERT INTO users (full_name, name, email, password, role, status, is_verified, is_active)
+                    VALUES (?, ?, ?, ?, 'user', 'active', 0, 1)
+                ");
+                $ins->bind_param("ssss", $clean_name, $clean_name, $email_lc, $hashed);
+
+                if ($ins->execute()) {
+                    $new_user_id = $ins->insert_id;
+                    $ins->close();
+
+                    $_SESSION['user_id']       = (int)$new_user_id;
+                    $_SESSION['name']          = $clean_name;
+                    $_SESSION['email']         = $email_lc;
+                    $_SESSION['role']          = 'user';
+                    $_SESSION['last_activity'] = time();
+                    $_SESSION['fingerprint']   = hash('sha256', $_SERVER['HTTP_USER_AGENT'] ?? '');
+
+                    header("Location: pages/dashboard.php");
+                    exit();
+                } else {
+                    $ins->close();
+                    $reg_error = "System error during registration. Please try again.";
+                }
+            }
+        }
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
@@ -31,6 +192,7 @@ $is_logged_in = isset($_SESSION['user_id']);
     --violet: #7c3aed;
     --green: #10f5a0;
     --green-dim: rgba(16,245,160,.12);
+    --red: #ff4d6d;
     --font: 'Plus Jakarta Sans', sans-serif;
     --font-head: 'Space Grotesk', sans-serif;
     --font-mono: 'Space Mono', monospace;
@@ -404,6 +566,135 @@ body > * { position: relative; z-index: 1; }
 .cta-h { font-family: var(--font-head); font-size: 34px; font-weight: 800; color: #fff; margin-bottom: 12px; }
 .cta-p { font-size: 16px; color: var(--text-2); max-width: 540px; margin: 0 auto 28px; }
 
+/* ── INTEGRATED AUTH MODAL ── */
+.auth-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.75);
+    backdrop-filter: blur(12px);
+    z-index: 999;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+.auth-overlay.open { display: flex; }
+
+.auth-card {
+    background: var(--surface);
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: var(--radius-xl);
+    width: 100%;
+    max-width: 440px;
+    padding: 32px 28px;
+    box-shadow: var(--shadow-lg);
+    position: relative;
+    animation: modalIn .3s cubic-bezier(.4,0,.2,1);
+}
+
+@keyframes modalIn { from { opacity: 0; transform: translateY(18px) scale(.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+.auth-close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--text-2);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all .15s;
+}
+.auth-close:hover { background: var(--surface-3); color: #fff; }
+
+.auth-switcher {
+    display: flex;
+    background: var(--surface-2);
+    padding: 4px;
+    border-radius: 12px;
+    margin-bottom: 24px;
+    border: 1px solid var(--line);
+}
+
+.auth-tab-btn {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    background: transparent;
+    color: var(--text-2);
+    font-size: 13.5px;
+    font-weight: 700;
+    font-family: var(--font);
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all .2s;
+}
+
+.auth-tab-btn.active {
+    background: var(--surface-3);
+    color: var(--cyan);
+    box-shadow: 0 2px 8px rgba(0,0,0,.3);
+}
+
+.auth-view { display: none; }
+.auth-view.active { display: block; }
+
+.auth-field { margin-bottom: 16px; text-align: left; }
+.auth-field label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--text-2); margin-bottom: 6px; }
+.auth-field input { width: 100%; padding: 11px 14px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface-2); color: #fff; font-size: 14px; font-family: var(--font); outline: none; transition: border-color .15s, box-shadow .15s; }
+.auth-field input:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px var(--cyan-dim); background: var(--surface); }
+
+.auth-submit-btn {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: none;
+    background: linear-gradient(135deg, var(--cyan), #0099cc);
+    color: #080b12;
+    font-size: 14.5px;
+    font-weight: 700;
+    font-family: var(--font);
+    cursor: pointer;
+    box-shadow: var(--cyan-glow);
+    margin-top: 8px;
+    transition: all .18s;
+}
+.auth-submit-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+
+.auth-toggle-msg {
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-2);
+    margin-top: 20px;
+}
+
+.auth-toggle-msg a {
+    color: var(--cyan);
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+}
+.auth-toggle-msg a:hover { text-decoration: underline; }
+
+.auth-error {
+    background: rgba(255,77,109,.12);
+    border: 1px solid rgba(255,77,109,.3);
+    color: var(--red);
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    margin-bottom: 16px;
+}
+
+.strength-bar { height: 4px; border-radius: 99px; margin-top: 6px; background: var(--surface-3); overflow: hidden; }
+.strength-fill { height: 100%; width: 0%; transition: width .3s, background .3s; }
+.strength-lbl { font-size: 10px; color: var(--text-3); text-align: right; margin-top: 3px; }
+
 /* ── FOOTER ── */
 .footer {
     border-top: 1px solid var(--line);
@@ -450,8 +741,8 @@ body > * { position: relative; z-index: 1; }
         <?php if ($is_logged_in): ?>
             <a href="pages/dashboard.php" class="btn btn-primary">Go to Dashboard →</a>
         <?php else: ?>
-            <a href="auth/login.php" class="btn btn-ghost">Sign In</a>
-            <a href="auth/register.php" class="btn btn-primary">Get Started Free</a>
+            <button onclick="openAuthModal('login')" class="btn btn-ghost">Sign In</button>
+            <button onclick="openAuthModal('register')" class="btn btn-primary">Get Started Free</button>
         <?php endif; ?>
     </div>
 </header>
@@ -466,8 +757,8 @@ body > * { position: relative; z-index: 1; }
         <?php if ($is_logged_in): ?>
             <a href="pages/dashboard.php" class="btn btn-primary btn-lg">Open Your Dashboard →</a>
         <?php else: ?>
-            <a href="auth/register.php" class="btn btn-primary btn-lg">Create Free Account →</a>
-            <a href="auth/login.php" class="btn btn-ghost btn-lg">Sign In to Account</a>
+            <button onclick="openAuthModal('register')" class="btn btn-primary btn-lg">Create Free Account →</button>
+            <button onclick="openAuthModal('login')" class="btn btn-ghost btn-lg">Sign In to Account</button>
         <?php endif; ?>
     </div>
 
@@ -607,11 +898,94 @@ body > * { position: relative; z-index: 1; }
         <?php if ($is_logged_in): ?>
             <a href="pages/dashboard.php" class="btn btn-primary btn-lg">Go to Dashboard →</a>
         <?php else: ?>
-            <a href="auth/register.php" class="btn btn-primary btn-lg">Create Free Account →</a>
-            <a href="auth/login.php" class="btn btn-ghost btn-lg">Sign In</a>
+            <button onclick="openAuthModal('register')" class="btn btn-primary btn-lg">Create Free Account →</button>
+            <button onclick="openAuthModal('login')" class="btn btn-ghost btn-lg">Sign In</button>
         <?php endif; ?>
     </div>
 </section>
+
+<!-- AUTH MODAL -->
+<div class="auth-overlay <?php echo !empty($active_auth_tab) ? 'open' : ''; ?>" id="authOverlay" onclick="if(event.target===this) closeAuthModal()">
+    <div class="auth-card">
+        <button class="auth-close" onclick="closeAuthModal()" aria-label="Close modal">✕</button>
+
+        <div class="auth-switcher">
+            <button class="auth-tab-btn <?php echo ($active_auth_tab !== 'register') ? 'active' : ''; ?>" id="tabBtnLogin" onclick="switchAuthTab('login')">Sign In</button>
+            <button class="auth-tab-btn <?php echo ($active_auth_tab === 'register') ? 'active' : ''; ?>" id="tabBtnRegister" onclick="switchAuthTab('register')">Register</button>
+        </div>
+
+        <!-- LOGIN VIEW -->
+        <div class="auth-view <?php echo ($active_auth_tab !== 'register') ? 'active' : ''; ?>" id="viewLogin">
+            <h2 style="font-family:var(--font-head);font-size:22px;font-weight:700;margin-bottom:4px;color:#fff;">Welcome back</h2>
+            <p style="font-size:13px;color:var(--text-2);margin-bottom:20px;">Sign in to your Fintrack account</p>
+
+            <?php if (!empty($login_error)): ?>
+                <div class="auth-error"><?php echo htmlspecialchars($login_error); ?></div>
+            <?php endif; ?>
+
+            <form method="POST" action="index.php" autocomplete="off" novalidate>
+                <?php echo csrf_field(); ?>
+                <input type="hidden" name="auth_action" value="login">
+                <input type="hidden" name="active_tab" value="login">
+
+                <div class="auth-field">
+                    <label>Email address</label>
+                    <input type="email" name="email" required autocomplete="off" placeholder="name@example.com">
+                </div>
+
+                <div class="auth-field">
+                    <label>Password</label>
+                    <input type="password" name="password" required autocomplete="new-password" placeholder="••••••••">
+                </div>
+
+                <button type="submit" class="auth-submit-btn">Sign In to Dashboard →</button>
+            </form>
+
+            <div class="auth-toggle-msg">
+                Don't have an account? <a onclick="switchAuthTab('register')">Register here</a>
+            </div>
+        </div>
+
+        <!-- REGISTER VIEW -->
+        <div class="auth-view <?php echo ($active_auth_tab === 'register') ? 'active' : ''; ?>" id="viewRegister">
+            <h2 style="font-family:var(--font-head);font-size:22px;font-weight:700;margin-bottom:4px;color:#fff;">Create an account</h2>
+            <p style="font-size:13px;color:var(--text-2);margin-bottom:20px;">Start your financial journey today</p>
+
+            <?php if (!empty($reg_error)): ?>
+                <div class="auth-error"><?php echo htmlspecialchars($reg_error); ?></div>
+            <?php endif; ?>
+
+            <form method="POST" action="index.php" autocomplete="off" novalidate>
+                <?php echo csrf_field(); ?>
+                <input type="hidden" name="auth_action" value="register">
+                <input type="hidden" name="active_tab" value="register">
+
+                <div class="auth-field">
+                    <label>Full Name</label>
+                    <input type="text" name="full_name" required autocomplete="off" placeholder="John Doe" maxlength="100">
+                </div>
+
+                <div class="auth-field">
+                    <label>Email address</label>
+                    <input type="email" name="email" required autocomplete="off" placeholder="example@gmail.com">
+                </div>
+
+                <div class="auth-field">
+                    <label>Create Password</label>
+                    <input type="password" name="password" required autocomplete="new-password" placeholder="At least 8 characters" oninput="checkAuthStrength(this.value)">
+                    <div class="strength-bar"><div class="strength-fill" id="authStrengthFill"></div></div>
+                    <div class="strength-lbl" id="authStrengthLbl">Enter a password</div>
+                </div>
+
+                <button type="submit" class="auth-submit-btn">Create Free Account →</button>
+            </form>
+
+            <div class="auth-toggle-msg">
+                Already have an account? <a onclick="switchAuthTab('login')">Sign In here</a>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- FOOTER -->
 <footer class="footer">
@@ -664,6 +1038,40 @@ function calculateSavings() {
 
     document.getElementById('totalResult').textContent = '$' + total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+
+// Modal & Auth Tab Switcher
+function openAuthModal(tab = 'login') {
+    switchAuthTab(tab);
+    document.getElementById('authOverlay').classList.add('open');
+}
+
+function closeAuthModal() {
+    document.getElementById('authOverlay').classList.remove('open');
+}
+
+function switchAuthTab(tab) {
+    const isReg = tab === 'register';
+    document.getElementById('viewLogin').classList.toggle('active', !isReg);
+    document.getElementById('viewRegister').classList.toggle('active', isReg);
+    document.getElementById('tabBtnLogin').classList.toggle('active', !isReg);
+    document.getElementById('tabBtnRegister').classList.toggle('active', isReg);
+}
+
+function checkAuthStrength(val) {
+    let score = 0;
+    if (val.length >= 8) score++;
+    if (/[A-Z]/.test(val)) score++;
+    if (/[0-9]/.test(val)) score++;
+    if (/[^A-Za-z0-9]/.test(val)) score++;
+    const fill = document.getElementById('authStrengthFill');
+    const label = document.getElementById('authStrengthLbl');
+    const colors = ['#E11D48','#D97706','#4F46E5','#059669'];
+    const labels = ['Weak','Fair','Good','Strong'];
+    fill.style.width = (score * 25) + '%';
+    fill.style.background = colors[score - 1] || '#E11D48';
+    label.textContent = val.length ? (labels[score - 1] || 'Weak') : 'Enter a password';
+    label.style.color = colors[score - 1] || 'var(--text-3)';
+}
 </script>
 </body>
-</html>
+</html>
