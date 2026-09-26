@@ -248,12 +248,11 @@ $user_display_name = !empty($user['full_name']) ? $user['full_name'] : (!empty($
 
             <div class="page-header">
                 <h1 class="page-title">Settings</h1>
-                <p class="page-sub">Manage your profile, preferences, and account security</p>
+                <p class="page-sub">Manage your profile,and account security</p>
             </div>
 
             <div class="settings-tabs">
                 <button class="settings-tab active" onclick="switchTab('profile', this)">Profile</button>
-                <button class="settings-tab" onclick="switchTab('preferences', this)">Preferences</button>
                 <button class="settings-tab" onclick="switchTab('security', this)">Security</button>
             </div>
 
@@ -297,7 +296,7 @@ $user_display_name = !empty($user['full_name']) ? $user['full_name'] : (!empty($
                     </div>
                     <div class="field">
                         <label>Bio / Status Message</label>
-                        <textarea id="bio" placeholder="Tell others a little about yourself..."><?php echo htmlspecialchars($user['status_message'] ?? ''); ?></textarea>
+                        <textarea id="bio" placeholder="What's your Bio..."><?php echo htmlspecialchars($user['status_message'] ?? ''); ?></textarea>
                     </div>
                     <div style="display:flex; gap:10px;">
                         <button class="btn btn-primary" onclick="saveProfile()">Save Changes</button>
@@ -306,34 +305,6 @@ $user_display_name = !empty($user['full_name']) ? $user['full_name'] : (!empty($
                 </div>
             </div>
 
-            <!-- PREFERENCES -->
-            <div class="settings-panel" id="tab-preferences">
-                <div class="card">
-                    <div class="card-title">Preferences & Appearance</div>
-                    <div class="card-sub" style="margin-bottom:20px;">Customize your theme and language settings</div>
-
-                    <div class="form-row">
-                        <div class="field">
-                            <label>Theme</label>
-                            <select id="themeSelect">
-                                <option value="dark" <?php echo ($user['theme'] ?? 'dark') === 'dark' ? 'selected' : ''; ?>>Dark Theme</option>
-                                <option value="light" <?php echo ($user['theme'] ?? '') === 'light' ? 'selected' : ''; ?>>Light Theme</option>
-                                <option value="auto" <?php echo ($user['theme'] ?? '') === 'auto' ? 'selected' : ''; ?>>System Default</option>
-                            </select>
-                        </div>
-                        <div class="field">
-                            <label>Language</label>
-                            <select id="languageSelect">
-                                <option value="en" <?php echo ($user['language'] ?? 'en') === 'en' ? 'selected' : ''; ?>>English</option>
-                                <option value="sw" <?php echo ($user['language'] ?? '') === 'sw' ? 'selected' : ''; ?>>Swahili</option>
-                                <option value="fr" <?php echo ($user['language'] ?? '') === 'fr' ? 'selected' : ''; ?>>French</option>
-                                <option value="ar" <?php echo ($user['language'] ?? '') === 'ar' ? 'selected' : ''; ?>>Arabic</option>
-                            </select>
-                        </div>
-                    </div>
-                    <button class="btn btn-primary" onclick="savePreferences()">Save Preferences</button>
-                </div>
-            </div>
 
             <!-- SECURITY -->
             <div class="settings-panel" id="tab-security">
@@ -545,4 +516,4 @@ function savePassword() {
 }
 </script>
 </body>
-</html>
+</html>

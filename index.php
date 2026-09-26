@@ -9,8 +9,10 @@ if ($is_logged_in && isset($_GET['auth'])) {
     exit();
 }
 
-$login_error = "";
-$reg_error   = "";
+$login_error   = "";
+$reg_error     = "";
+$forgot_error   = "";
+$forgot_success = "";
 $active_auth_tab = $_GET['auth'] ?? ($_POST['active_tab'] ?? '');
 
 // ── BRUTE FORCE HELPERS ────────────────────────────────────
@@ -181,6 +183,51 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['auth_action'])) {
                         $reg_error = "System error during registration. Please try again.";
                     }
                 }
+            }
+        }
+    } elseif ($auth_action === 'forgot_password') {
+        $active_auth_tab = 'forgot';
+        $forgot_input = trim($_POST['email'] ?? '');
+
+        if (empty($forgot_input)) {
+            $forgot_error = "Please enter your registered email address or username.";
+        } else {
+            $input_lc = mb_strtolower($forgot_input);
+            $stmt = $conn->prepare("SELECT user_id, email, full_name, name FROM users WHERE LOWER(email) = ? OR LOWER(username) = ? LIMIT 1");
+            $stmt->bind_param("ss", $input_lc, $input_lc);
+            $stmt->execute();
+            $found_user = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+
+            if ($found_user) {
+                $user_email = $found_user['email'];
+                $token = bin2hex(random_bytes(32));
+
+                // Clean existing tokens for this email
+                $del_stmt = $conn->prepare("DELETE FROM password_resets WHERE LOWER(email) = ?");
+                $del_stmt->bind_param("s", $user_email);
+                $del_stmt->execute();
+                $del_stmt->close();
+
+                // Save new token valid for 1 hour
+                $ins_stmt = $conn->prepare("INSERT INTO password_resets (email, token, created_at, expires_at) VALUES (?, ?, NOW(), DATE_ADD(NOW(), INTERVAL 1 HOUR))");
+                $ins_stmt->bind_param("ss", $user_email, $token);
+
+                if ($ins_stmt->execute()) {
+                    $ins_stmt->close();
+                    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+                    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+                    $dir = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
+                    $reset_link = $protocol . $host . $dir . "/reset_password.php?token=" . $token;
+
+                    $forgot_success = "Password reset link generated successfully!<br><br><b>Reset Link:</b> <a href='" . htmlspecialchars($reset_link) . "' style='color:var(--accent);font-weight:700;word-break:break-all;'>" . htmlspecialchars($reset_link) . "</a><br><small style='opacity:.85;'>Link is valid for 1 hour.</small>";
+                } else {
+                    $ins_stmt->close();
+                    $forgot_error = "Failed to generate password reset request. Please try again.";
+                }
+            } else {
+                // Return clear message
+                $forgot_error = "No account found matching that email or username.";
             }
         }
     }
@@ -717,6 +764,28 @@ body > * { position: relative; z-index: 1; }
 }
 .pwd-toggle-btn:hover { color: var(--text-1); }
 
+.forgot-link {
+    font-size: 12px;
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    display: inline-block;
+    transition: color .2s, transform .2s;
+}
+.forgot-link:hover { color: var(--accent-2); text-decoration: underline; }
+.forgot-link.shake-accent {
+    animation: forgotShake 0.6s cubic-bezier(.36,.07,.19,.97) both 0.25s;
+    color: var(--red);
+    font-weight: 700;
+}
+
+@keyframes forgotShake {
+    0%, 100% { transform: translateX(0); }
+    15%, 45%, 75% { transform: translateX(-6px); }
+    30%, 60%, 90% { transform: translateX(6px); }
+}
+
 .auth-submit-btn {
     width: 100%;
     padding: 12px;
@@ -975,13 +1044,13 @@ body > * { position: relative; z-index: 1; }
 </section>
 
 <!-- AUTH MODAL -->
-<?php $modal_open = (!empty($login_error) || !empty($reg_error)); ?>
+<?php $modal_open = (!empty($login_error) || !empty($reg_error) || !empty($forgot_error) || !empty($forgot_success)); ?>
 <div class="auth-overlay <?php echo $modal_open ? 'open' : ''; ?>" id="authOverlay" onclick="if(event.target===this) closeAuthModal()">
     <div class="auth-card">
         <button class="auth-close" onclick="closeAuthModal()" aria-label="Close modal">✕</button>
 
         <!-- LOGIN VIEW -->
-        <div class="auth-view <?php echo ($active_auth_tab !== 'register') ? 'active' : ''; ?>" id="viewLogin">
+        <div class="auth-view <?php echo ($active_auth_tab === '' || $active_auth_tab === 'login') ? 'active' : ''; ?>" id="viewLogin">
             <h2 style="font-family:var(--font-head);font-size:22px;font-weight:700;margin-bottom:4px;color:var(--text-1);">Welcome back</h2>
             <p style="font-size:13px;color:var(--text-2);margin-bottom:20px;">Sign in to your Fintrack account</p>
 
@@ -1006,6 +1075,9 @@ body > * { position: relative; z-index: 1; }
                         <button type="button" class="pwd-toggle-btn" onclick="togglePasswordVisibility('loginPassword', this)" title="Show/Hide Password" aria-label="Toggle password visibility">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                         </button>
+                    </div>
+                    <div style="text-align:right;margin-top:6px;">
+                        <a id="forgotPassLink" onclick="switchAuthTab('forgot')" class="forgot-link <?php echo !empty($login_error) ? 'shake-accent' : ''; ?>">Forgot password?</a>
                     </div>
                 </div>
 
@@ -1063,6 +1135,39 @@ body > * { position: relative; z-index: 1; }
 
             <div class="auth-toggle-msg">
                 Already have an account? <a onclick="switchAuthTab('login')">Sign In here</a>
+            </div>
+        </div>
+
+        <!-- FORGOT PASSWORD VIEW -->
+        <div class="auth-view <?php echo ($active_auth_tab === 'forgot') ? 'active' : ''; ?>" id="viewForgot">
+            <h2 style="font-family:var(--font-head);font-size:22px;font-weight:700;margin-bottom:4px;color:var(--text-1);">Reset Password</h2>
+            <p style="font-size:13px;color:var(--text-2);margin-bottom:20px;">Enter your registered email address or username to receive a password reset link.</p>
+
+            <?php if (!empty($forgot_error)): ?>
+                <div class="auth-error"><?php echo htmlspecialchars($forgot_error); ?></div>
+            <?php endif; ?>
+
+            <?php if (!empty($forgot_success)): ?>
+                <div class="auth-success" style="background:var(--green-dim);border:1px solid rgba(5,150,105,.25);color:var(--green);padding:12px 14px;border-radius:10px;font-size:13px;margin-bottom:16px;line-height:1.5;">
+                    <?php echo $forgot_success; ?>
+                </div>
+            <?php endif; ?>
+
+            <form method="POST" action="index.php" autocomplete="off" novalidate>
+                <?php echo csrf_field(); ?>
+                <input type="hidden" name="auth_action" value="forgot_password">
+                <input type="hidden" name="active_tab" value="forgot">
+
+                <div class="auth-field">
+                    <label>Email address or Username</label>
+                    <input type="text" name="email" required autocomplete="off" placeholder="name@example.com or username">
+                </div>
+
+                <button type="submit" class="auth-submit-btn">Send Reset Link →</button>
+            </form>
+
+            <div class="auth-toggle-msg">
+                Remembered your password? <a onclick="switchAuthTab('login')">Sign In here</a>
             </div>
         </div>
     </div>
@@ -1137,11 +1242,12 @@ function closeAuthModal() {
 }
 
 function switchAuthTab(tab) {
-    const isReg = tab === 'register';
     const viewLogin = document.getElementById('viewLogin');
     const viewRegister = document.getElementById('viewRegister');
-    if (viewLogin) viewLogin.classList.toggle('active', !isReg);
-    if (viewRegister) viewRegister.classList.toggle('active', isReg);
+    const viewForgot = document.getElementById('viewForgot');
+    if (viewLogin) viewLogin.classList.toggle('active', tab === 'login');
+    if (viewRegister) viewRegister.classList.toggle('active', tab === 'register');
+    if (viewForgot) viewForgot.classList.toggle('active', tab === 'forgot');
 }
 
 function checkAuthStrength(val) {
