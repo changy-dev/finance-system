@@ -3,7 +3,7 @@ session_start();
 include __DIR__ . '/../core/db.php';
 require_once __DIR__ . '/../core/csrf.php';
 
-// ── AUTH CHECK ────────────────────────────────────────────────────────────
+
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../auth/login.php");
     exit();
@@ -21,8 +21,7 @@ csrf_verify();
 $user_id = (int) $_SESSION['user_id'];
 $id      = isset($_POST['id']) ? (int) $_POST['id'] : 0;
 
-// Redirect back to whichever page (dashboard or transactions) the delete
-// was triggered from, so the user isn't bounced away from where they were.
+
 $referer   = $_SERVER['HTTP_REFERER'] ?? '';
 $returnTo  = (strpos($referer, '/pages/transactions.php') !== false)
     ? '../pages/transactions.php'
@@ -48,7 +47,7 @@ if (!$authUser) {
 $role = $authUser['role'];
 
 if ($role === 'admin') {
-    // ADMIN: Hard delete — permanent removal for system cleanup
+   
     $stmt = $conn->prepare("DELETE FROM transactions WHERE transaction_id = ?");
     $stmt->bind_param("i", $id);
 } else {

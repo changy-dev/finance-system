@@ -1,9 +1,5 @@
 <?php
-// ============================================================
-// partials/sidebar.php
-// Include immediately after header.php on every page.
-// Requires: $user_name (set by header.php)
-// ============================================================
+
 $current_page = basename($_SERVER['PHP_SELF']);
 $collapsed    = isset($_COOKIE['sidebar_collapsed']) && $_COOKIE['sidebar_collapsed'] === '1';
 ?>

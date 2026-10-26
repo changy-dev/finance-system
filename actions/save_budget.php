@@ -52,10 +52,10 @@ if (!$stmt) {
 
 $saved   = 0;
 $errors  = [];
-$MAX_AMT = 100000000; // KES 100M sanity ceiling
+$MAX_AMT = 100000000; 
 
 function valid_limit($v) {
-    // Must be numeric, non-negative, and within a sane range. Empty stays null (no limit set).
+   
     if ($v === null || $v === '') return [true, null];
     if (!is_numeric($v)) return [false, null];
     $f = (float) $v;
@@ -87,7 +87,7 @@ foreach ($budgets as $category => $amount) {
 
 $stmt->close();
 
-// Return fresh CSRF token so the page can save again without reload
+
 $new_token = bin2hex(random_bytes(32));
 $_SESSION['csrf_token'] = $new_token;
 

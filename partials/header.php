@@ -4,11 +4,11 @@
 // ============================================================
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 
-require_once __DIR__ . '/../db.php';
-require_once __DIR__ . '/../csrf.php';
-require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/../core/db.php';
+require_once __DIR__ . '/../core/csrf.php';
+require_once __DIR__ . '/../core/security.php';
 
-if (!isset($_SESSION['user_id'])) { header('Location: login.php'); exit; }
+if (!isset($_SESSION['user_id'])) { header('Location: ../auth/login.php'); exit; }
 
 $user_id   = (int) $_SESSION['user_id'];
 $user_name = $_SESSION['name'] ?? 'User';

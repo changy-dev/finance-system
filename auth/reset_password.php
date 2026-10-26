@@ -1,7 +1,7 @@
 <?php
 session_start();
-require_once __DIR__ . '/core/db.php';
-if (!function_exists('csrf_token')) { require_once __DIR__ . '/core/csrf.php'; }
+require_once __DIR__ . '/../core/db.php';
+if (!function_exists('csrf_token')) { require_once __DIR__ . '/../core/csrf.php'; }
 
 $token = trim($_GET['token'] ?? ($_POST['token'] ?? ''));
 $error_message = '';
@@ -279,7 +279,7 @@ body::before {
 
     <?php if (!empty($success_message)): ?>
         <div class="alert-box alert-success"><?php echo htmlspecialchars($success_message); ?></div>
-        <a href="index.php?auth=login" class="submit-btn" style="text-align:center;text-decoration:none;display:block;">Proceed to Sign In →</a>
+        <a href="../index.php?auth=login" class="submit-btn" style="text-align:center;text-decoration:none;display:block;">Proceed to Sign In →</a>
     <?php elseif ($is_token_valid): ?>
         <form method="POST" action="reset_password.php" autocomplete="off" novalidate>
             <?php echo csrf_field(); ?>
@@ -311,7 +311,7 @@ body::before {
         </form>
     <?php endif; ?>
 
-    <a href="index.php?auth=login" class="back-link">← Return to Sign In</a>
+    <a href="../index.php?auth=login" class="back-link">← Return to Sign In</a>
 </div>
 
 <script>

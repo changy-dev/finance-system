@@ -218,7 +218,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['auth_action'])) {
                     $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
                     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
                     $dir = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
-                    $reset_link = $protocol . $host . $dir . "/reset_password.php?token=" . $token;
+                    $reset_link = $protocol . $host . $dir . "/auth/reset_password.php?token=" . $token;
 
                     $forgot_success = "Password reset link generated successfully!<br><br><b>Reset Link:</b> <a href='" . htmlspecialchars($reset_link) . "' style='color:var(--accent);font-weight:700;word-break:break-all;'>" . htmlspecialchars($reset_link) . "</a><br><small style='opacity:.85;'>Link is valid for 1 hour.</small>";
                 } else {

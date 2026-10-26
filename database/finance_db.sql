@@ -626,10 +626,7 @@ ALTER TABLE `debts_loans`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
--- AUTO_INCREMENT for table `debt_payments`
---
-ALTER TABLE `debt_payments`
-  MODIFY `payment_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+;
 
 --
 -- AUTO_INCREMENT for table `net_worth_snapshots`
@@ -677,23 +674,7 @@ ALTER TABLE `users`
 ALTER TABLE `budgets`
   ADD CONSTRAINT `budgets_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`);
 
---
--- Constraints for table `debts_loans`
---
-ALTER TABLE `debts_loans`
-  ADD CONSTRAINT `debts_loans_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
 
---
--- Constraints for table `debt_payments`
---
-ALTER TABLE `debt_payments`
-  ADD CONSTRAINT `debt_payments_ibfk_1` FOREIGN KEY (`debt_id`) REFERENCES `debts_loans` (`id`) ON DELETE CASCADE;
-
---
--- Constraints for table `recurring_transactions`
---
-ALTER TABLE `recurring_transactions`
-  ADD CONSTRAINT `recurring_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `savings_goals`
