@@ -9,6 +9,7 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id   = (int) $_SESSION['user_id'];
 $user_name = $_SESSION['name'] ?? 'User';
+$is_admin  = (($_SESSION['role'] ?? '') === 'admin');
 
 /* ── VALIDATE PERIOD SELECTION ── */
 $allowed_periods = ['this_month', 'last_month', 'this_year', 'last_year', 'last_30', 'all_time', 'custom'];
@@ -82,16 +83,29 @@ switch ($period) {
 $dateExpr = "COALESCE(NULLIF(date,'0000-00-00'), DATE(created_at))";
 
 /* ── SUMMARY TOTALS ── */
-$stmt = $conn->prepare("
-    SELECT
-        SUM(CASE WHEN type='income'  THEN amount ELSE 0 END) AS total_income,
-        SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) AS total_expense,
-        COUNT(*) AS total_count
-    FROM transactions
-    WHERE user_id = ? AND is_deleted_by_user = 0
-      AND $dateExpr BETWEEN ? AND ?
-");
-$stmt->bind_param('iss', $user_id, $rangeStart, $rangeEnd);
+if ($is_admin) {
+    $stmt = $conn->prepare("
+        SELECT
+            SUM(CASE WHEN type='income'  THEN amount ELSE 0 END) AS total_income,
+            SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) AS total_expense,
+            COUNT(*) AS total_count
+        FROM transactions
+        WHERE is_deleted_by_user = 0
+          AND $dateExpr BETWEEN ? AND ?
+    ");
+    $stmt->bind_param('ss', $rangeStart, $rangeEnd);
+} else {
+    $stmt = $conn->prepare("
+        SELECT
+            SUM(CASE WHEN type='income'  THEN amount ELSE 0 END) AS total_income,
+            SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) AS total_expense,
+            COUNT(*) AS total_count
+        FROM transactions
+        WHERE user_id = ? AND is_deleted_by_user = 0
+          AND $dateExpr BETWEEN ? AND ?
+    ");
+    $stmt->bind_param('iss', $user_id, $rangeStart, $rangeEnd);
+}
 $stmt->execute();
 $summary = $stmt->get_result()->fetch_assoc();
 $stmt->close();
@@ -103,15 +117,27 @@ $savingsRate  = $totalIncome > 0 ? round(($netSavings / $totalIncome) * 100, 1) 
 $txCount      = (int) ($summary['total_count'] ?? 0);
 
 /* ── CATEGORY BREAKDOWN (expenses) ── */
-$stmt = $conn->prepare("
-    SELECT category, SUM(amount) AS total
-    FROM transactions
-    WHERE user_id = ? AND is_deleted_by_user = 0 AND type = 'expense'
-      AND $dateExpr BETWEEN ? AND ?
-    GROUP BY category
-    ORDER BY total DESC
-");
-$stmt->bind_param('iss', $user_id, $rangeStart, $rangeEnd);
+if ($is_admin) {
+    $stmt = $conn->prepare("
+        SELECT category, SUM(amount) AS total
+        FROM transactions
+        WHERE is_deleted_by_user = 0 AND type = 'expense'
+          AND $dateExpr BETWEEN ? AND ?
+        GROUP BY category
+        ORDER BY total DESC
+    ");
+    $stmt->bind_param('ss', $rangeStart, $rangeEnd);
+} else {
+    $stmt = $conn->prepare("
+        SELECT category, SUM(amount) AS total
+        FROM transactions
+        WHERE user_id = ? AND is_deleted_by_user = 0 AND type = 'expense'
+          AND $dateExpr BETWEEN ? AND ?
+        GROUP BY category
+        ORDER BY total DESC
+    ");
+    $stmt->bind_param('iss', $user_id, $rangeStart, $rangeEnd);
+}
 $stmt->execute();
 $catRes = $stmt->get_result();
 $catLabels = [];
@@ -129,18 +155,33 @@ foreach ($catLabels as $i => $lbl) {
 }
 
 /* ── MONTHLY INCOME VS EXPENSE TREND WITHIN RANGE ── */
-$stmt = $conn->prepare("
-    SELECT
-        DATE_FORMAT($dateExpr, '%Y-%m') AS ym,
-        SUM(CASE WHEN type='income'  THEN amount ELSE 0 END) AS income,
-        SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) AS expense
-    FROM transactions
-    WHERE user_id = ? AND is_deleted_by_user = 0
-      AND $dateExpr BETWEEN ? AND ?
-    GROUP BY ym
-    ORDER BY ym ASC
-");
-$stmt->bind_param('iss', $user_id, $rangeStart, $rangeEnd);
+if ($is_admin) {
+    $stmt = $conn->prepare("
+        SELECT
+            DATE_FORMAT($dateExpr, '%Y-%m') AS ym,
+            SUM(CASE WHEN type='income'  THEN amount ELSE 0 END) AS income,
+            SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) AS expense
+        FROM transactions
+        WHERE is_deleted_by_user = 0
+          AND $dateExpr BETWEEN ? AND ?
+        GROUP BY ym
+        ORDER BY ym ASC
+    ");
+    $stmt->bind_param('ss', $rangeStart, $rangeEnd);
+} else {
+    $stmt = $conn->prepare("
+        SELECT
+            DATE_FORMAT($dateExpr, '%Y-%m') AS ym,
+            SUM(CASE WHEN type='income'  THEN amount ELSE 0 END) AS income,
+            SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) AS expense
+        FROM transactions
+        WHERE user_id = ? AND is_deleted_by_user = 0
+          AND $dateExpr BETWEEN ? AND ?
+        GROUP BY ym
+        ORDER BY ym ASC
+    ");
+    $stmt->bind_param('iss', $user_id, $rangeStart, $rangeEnd);
+}
 $stmt->execute();
 $trendRes = $stmt->get_result();
 $trendLabels  = [];
@@ -204,6 +245,25 @@ $topCats = array_slice(array_combine($catLabels, $catTotals), 0, 5, true);
         </div>
 
         <nav class="sidebar-nav">
+            <?php if ($is_admin): ?>
+            <div class="nav-section-label">Overview</div>
+            <a href="admin_dashboard.php" class="nav-item" title="Dashboard">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10-3a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1v-7z"/></svg>
+                <span class="nav-label">System Overview</span>
+            </a>
+
+            <div class="nav-section-label" style="margin-top:16px;">Management</div>
+            <a href="users.php" class="nav-item" title="Users">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                <span class="nav-label">User Directory</span>
+            </a>
+
+            <div class="nav-section-label" style="margin-top:16px;">Analytics</div>
+            <a href="reports.php" class="nav-item active" title="Reports">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0h6m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2zM9 19H5a2 2 0 01-2-2v-3a2 2 0 012-2h2"/></svg>
+                <span class="nav-label">System Reports</span>
+            </a>
+            <?php else: ?>
             <div class="nav-section-label">Overview</div>
             <a href="../pages/dashboard.php" class="nav-item" title="Dashboard">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10-3a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1v-7z"/></svg>
@@ -223,6 +283,7 @@ $topCats = array_slice(array_combine($catLabels, $catTotals), 0, 5, true);
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0h6m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2zM9 19H5a2 2 0 01-2-2v-3a2 2 0 012-2h2"/></svg>
                 <span class="nav-label">Reports</span>
             </a>
+            <?php endif; ?>
 
             <div class="nav-section-label" style="margin-top:16px;">Account</div>
             <a href="/finance_system/pages/settings.php" class="nav-item" title="Settings">
@@ -252,9 +313,9 @@ $topCats = array_slice(array_combine($catLabels, $catTotals), 0, 5, true);
         <div class="topbar">
             <div class="topbar-left">
                 <div class="breadcrumb">
-                    <span>Home</span>
+                    <a href="<?php echo $is_admin ? 'admin_dashboard.php' : 'dashboard.php'; ?>" style="color:inherit;text-decoration:none;">Dashboard</a>
                     <span class="breadcrumb-sep">›</span>
-                    <span class="breadcrumb-current">Reports</span>
+                    <span class="breadcrumb-current"><?php echo $is_admin ? 'System Reports' : 'Reports'; ?></span>
                 </div>
             </div>
             <div class="topbar-right">
@@ -270,8 +331,8 @@ $topCats = array_slice(array_combine($catLabels, $catTotals), 0, 5, true);
 
             <div class="page-header">
                 <div class="page-header-left">
-                    <h1 class="page-title">Reports</h1>
-                    <p class="page-sub">Income vs expenses and category breakdown for <?php echo htmlspecialchars($rangeLabel); ?></p>
+                    <h1 class="page-title"><?php echo $is_admin ? 'System Financial Reports' : 'Reports'; ?></h1>
+                    <p class="page-sub"><?php echo $is_admin ? 'System-wide cashflow and platform category breakdown for ' . htmlspecialchars($rangeLabel) : 'Income vs expenses and category breakdown for ' . htmlspecialchars($rangeLabel); ?></p>
                 </div>
             </div>
 

@@ -1,6 +1,7 @@
 <?php
 session_start();
-include '../core/db.php';
+require_once __DIR__ . '/../core/db.php';
+require_once __DIR__ . '/../core/csrf.php';
 
 header('Content-Type: application/json');
 
@@ -12,6 +13,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'message' => 'Invalid method']);
     exit;
 }
+
+csrf_verify_json();
 
 $user_id = (int) $_SESSION['user_id'];
 $id      = (int) ($_POST['id'] ?? 0);
@@ -87,9 +90,10 @@ if (!$stmt) {
 
 $stmt->bind_param('ssdsssii', $type, $category, $amount, $description, $created_at, $created_at, $id, $user_id);
 
+$csrf_token = $_SESSION['csrf_token'] ?? '';
 if ($stmt->execute()) {
-    echo json_encode(['success' => true, 'message' => 'Transaction updated']);
+    echo json_encode(['success' => true, 'message' => 'Transaction updated', 'csrf_token' => $csrf_token]);
 } else {
-    echo json_encode(['success' => false, 'message' => 'Update failed: ' . $stmt->error]);
+    echo json_encode(['success' => false, 'message' => 'Update failed: ' . $stmt->error, 'csrf_token' => $csrf_token]);
 }
 $stmt->close();

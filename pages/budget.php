@@ -8,7 +8,13 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
+if (($_SESSION['role'] ?? '') === 'admin') {
+    header("Location: admin_dashboard.php");
+    exit();
+}
+
 $user_id = (int) $_SESSION['user_id'];
+$user_name = $_SESSION['name'] ?? 'User';
 
 /* ── CURRENT MONTH BOUNDS ── */
 $monthStart = date('Y-m-01');
@@ -612,10 +618,14 @@ body > * { position: relative; z-index: 1; }
 
         <div class="sidebar-footer">
             <div class="user-row">
-                <div class="user-avatar">U</div>
+                <div class="user-avatar"><?= strtoupper(substr($user_name, 0, 1)) ?></div>
                 <div class="nav-label-text">
-                    <div class="user-name">My Account</div>
+                    <div class="user-name"><?= htmlspecialchars($user_name) ?></div>
+                    <?php if (($_SESSION['role'] ?? '') === 'admin'): ?>
+                    <div style="font-size:10px;color:#FF6B35;font-weight:700;letter-spacing:.5px;">ADMINISTRATOR</div>
+                    <?php else: ?>
                     <div class="user-role">Personal plan</div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -1201,7 +1211,7 @@ function switchPeriodTab(period) {
 const shownAlerts = new Set();
 
 function checkPeriodAlerts() {
-    fetch('check_budget_period_alerts.php')
+    fetch('../core/check_budget_period_alerts.php')
         .then(r => r.json())
         .then(data => {
             if (!data.alerts || data.alerts.length === 0) return;

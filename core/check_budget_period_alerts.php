@@ -6,8 +6,8 @@
  * Also inserts into budget_over_notifications so alerts are not repeated
  * more than once per period.
  */
-session_start();
-include 'db.php';
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
+require_once __DIR__ . '/db.php';
 header('Content-Type: application/json');
 
 if (!isset($_SESSION['user_id'])) {
@@ -45,6 +45,7 @@ function get_spent($conn, $user_id, $from, $to) {
          FROM transactions
          WHERE user_id = $user_id
            AND type = 'expense'
+           AND is_deleted_by_user = 0
            AND created_at BETWEEN '$from 00:00:00' AND '$to 23:59:59'
          GROUP BY category"
     );

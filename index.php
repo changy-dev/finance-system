@@ -5,7 +5,8 @@ if (!function_exists('csrf_token')) { require_once __DIR__ . '/core/csrf.php'; }
 
 $is_logged_in = isset($_SESSION['user_id']);
 if ($is_logged_in && isset($_GET['auth'])) {
-    header("Location: pages/dashboard.php");
+    $dest = (($_SESSION['role'] ?? '') === 'admin') ? 'pages/admin_dashboard.php' : 'pages/dashboard.php';
+    header("Location: $dest");
     exit();
 }
 
@@ -59,20 +60,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['auth_action'])) {
         $password    = trim($_POST['password'] ?? '');
 
         if (empty($login_input)) {
-            $login_error = "Please enter your email or username.";
+            $login_error = "Please enter your email.";
         } elseif (empty($password)) {
             $login_error = "Password is required.";
         } else {
-            $attempts  = get_login_attempts($conn, $login_input);
+            $login_lc  = mb_strtolower($login_input);
+            $attempts  = get_login_attempts($conn, $login_lc);
             $is_locked = $attempts['locked_until'] && strtotime($attempts['locked_until']) > time();
 
             if ($is_locked) {
                 $mins  = ceil((strtotime($attempts['locked_until']) - time()) / 60);
                 $login_error = "Too many failed attempts. Try again in {$mins} minute(s).";
             } else {
-                $stmt = $conn->prepare("SELECT user_id, full_name, name, username, email, password, role, status FROM users WHERE LOWER(email) = ? OR LOWER(username) = ? LIMIT 1");
-                $login_lc = mb_strtolower($login_input);
-                $stmt->bind_param("ss", $login_lc, $login_lc);
+                $stmt = $conn->prepare("SELECT user_id, full_name, name, email, password, role, status FROM users WHERE LOWER(email) = ? LIMIT 1");
+                $stmt->bind_param("s", $login_lc);
                 $stmt->execute();
                 $user = $stmt->get_result()->fetch_assoc();
 
@@ -89,13 +90,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['auth_action'])) {
 
                         session_regenerate_id(false);
                         session_write_close();
-                        clear_login_attempts($conn, $login_input);
+                        clear_login_attempts($conn, $login_lc);
 
-                        header("Location: pages/dashboard.php");
+                        $dest = (($user['role'] ?? '') === 'admin') ? 'pages/admin_dashboard.php' : 'pages/dashboard.php';
+                        header("Location: $dest");
                         exit();
                     }
                 } else {
-                    record_failed_attempt($conn, $login_input);
+                    record_failed_attempt($conn, $login_lc);
                     $remaining = MAX_LOGIN_ATTEMPTS - ($attempts['attempt_count'] + 1);
                     if ($remaining > 0) {
                         $login_error = "Wrong credentials or password. {$remaining} attempt(s) remaining.";
@@ -108,7 +110,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['auth_action'])) {
     } elseif ($auth_action === 'register') {
         $active_auth_tab = 'register';
         $full_name = trim($_POST['full_name'] ?? '');
-        $username  = trim($_POST['username'] ?? '');
         $email     = trim($_POST['email'] ?? '');
         $password  = $_POST['password'] ?? '';
 
@@ -118,12 +119,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['auth_action'])) {
             $reg_error = "Full name must be under 100 characters.";
         } elseif (!preg_match("/^[a-zA-Z\s'-]+$/u", $full_name)) {
             $reg_error = "Full name can only contain letters, spaces, and hyphens.";
-        } elseif ($username === '' || mb_strlen($username) < 3 || mb_strlen($username) > 30) {
-            $reg_error = "Username must be between 3 and 30 characters.";
-        } elseif (!preg_match('/^[a-zA-Z0-9_-]+$/', $username)) {
-            $reg_error = "Username can only contain letters, numbers, underscores, and hyphens.";
-        } elseif (ctype_digit($username)) {
-            $reg_error = "Username cannot consist of numbers only.";
         } elseif ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $reg_error = "Please enter a valid email address.";
         } elseif (strlen($password) < 8) {
@@ -135,35 +130,24 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['auth_action'])) {
         } elseif (!preg_match('/[a-z]/', $password)) {
             $reg_error = "Password needs at least one lowercase letter.";
         } else {
-            // Check username uniqueness
-            $u_stmt = $conn->prepare("SELECT user_id FROM users WHERE LOWER(username) = ? LIMIT 1");
-            $u_lc = mb_strtolower($username);
-            $u_stmt->bind_param("s", $u_lc);
-            $u_stmt->execute();
-            if ($u_stmt->get_result()->num_rows > 0) {
-                $u_stmt->close();
-                $reg_error = "Username is already taken. Please choose another.";
+            // Check email uniqueness
+            $check_stmt = $conn->prepare("SELECT user_id FROM users WHERE LOWER(email) = ? LIMIT 1");
+            $email_lc = mb_strtolower($email);
+            $check_stmt->bind_param("s", $email_lc);
+            $check_stmt->execute();
+            if ($check_stmt->get_result()->num_rows > 0) {
+                $check_stmt->close();
+                $reg_error = "Email already registered. Please log in.";
             } else {
-                $u_stmt->close();
-                // Check email uniqueness
-                $check_stmt = $conn->prepare("SELECT user_id FROM users WHERE LOWER(email) = ? LIMIT 1");
-                $email_lc = mb_strtolower($email);
-                $check_stmt->bind_param("s", $email_lc);
-                $check_stmt->execute();
-                if ($check_stmt->get_result()->num_rows > 0) {
-                    $check_stmt->close();
-                    $reg_error = "Email already registered. Please log in.";
-                } else {
-                    $check_stmt->close();
-                    $hashed = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
-                    $clean_name  = strip_tags($full_name);
-                    $clean_uname = strip_tags($username);
+                $check_stmt->close();
+                $hashed = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
+                $clean_name = strip_tags($full_name);
 
-                    $ins = $conn->prepare("
-                        INSERT INTO users (full_name, username, name, email, password, role, status, is_verified, is_active)
-                        VALUES (?, ?, ?, ?, ?, 'user', 'active', 0, 1)
-                    ");
-                    $ins->bind_param("sssss", $clean_name, $clean_uname, $clean_name, $email_lc, $hashed);
+                $ins = $conn->prepare("
+                    INSERT INTO users (full_name, name, email, password, role, status, is_verified, is_active)
+                    VALUES (?, ?, ?, ?, 'user', 'active', 0, 1)
+                ");
+                $ins->bind_param("ssss", $clean_name, $clean_name, $email_lc, $hashed);
 
                     if ($ins->execute()) {
                         $new_user_id = $ins->insert_id;
@@ -184,17 +168,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['auth_action'])) {
                     }
                 }
             }
-        }
     } elseif ($auth_action === 'forgot_password') {
         $active_auth_tab = 'forgot';
         $forgot_input = trim($_POST['email'] ?? '');
 
         if (empty($forgot_input)) {
-            $forgot_error = "Please enter your registered email address or username.";
+            $forgot_error = "Please enter your registered email address.";
         } else {
             $input_lc = mb_strtolower($forgot_input);
-            $stmt = $conn->prepare("SELECT user_id, email, full_name, name FROM users WHERE LOWER(email) = ? OR LOWER(username) = ? LIMIT 1");
-            $stmt->bind_param("ss", $input_lc, $input_lc);
+            $stmt = $conn->prepare("SELECT user_id, email, full_name, name FROM users WHERE LOWER(email) = ? LIMIT 1");
+            $stmt->bind_param("s", $input_lc);
             $stmt->execute();
             $found_user = $stmt->get_result()->fetch_assoc();
             $stmt->close();
@@ -227,7 +210,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['auth_action'])) {
                 }
             } else {
                 // Return clear message
-                $forgot_error = "No account found matching that email or username.";
+                $forgot_error = "No account found matching that email address.";
             }
         }
     }
@@ -642,20 +625,6 @@ body > * { position: relative; z-index: 1; }
 .calc-result-lbl { font-size: 11.5px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
 .calc-result-val { font-family: var(--font-mono); font-size: 36px; font-weight: 800; color: var(--green); letter-spacing: -1px; margin-bottom: 10px; }
 
-/* ── CTA BANNER ── */
-.cta-banner {
-    background: linear-gradient(135deg, #1E1B4B, #16134A);
-    border-radius: var(--radius-xl);
-    padding: 56px 40px;
-    max-width: 1040px;
-    margin: 0 auto 80px;
-    text-align: center;
-    box-shadow: var(--shadow-lg);
-}
-
-.cta-h { font-family: var(--font-head); font-size: 32px; font-weight: 800; color: #fff; margin-bottom: 10px; }
-.cta-p { font-size: 15px; color: rgba(255,255,255,.7); max-width: 520px; margin: 0 auto 26px; }
-
 /* ── INTEGRATED AUTH MODAL ── */
 .auth-overlay {
     display: none;
@@ -1029,22 +998,8 @@ body > * { position: relative; z-index: 1; }
     </div>
 </section>
 
-<!-- CTA BANNER -->
-<section class="cta-banner">
-    <h2 class="cta-h">Ready to transform your finances?</h2>
-    <p class="cta-p">Join Fintrack today and experience complete financial clarity and control.</p>
-    <div style="display:flex;justify-content:center;gap:16px;">
-        <?php if ($is_logged_in): ?>
-            <a href="pages/dashboard.php" class="btn btn-primary btn-lg">Go to Dashboard →</a>
-        <?php else: ?>
-            <button onclick="openAuthModal('register')" class="btn btn-primary btn-lg">Create Free Account →</button>
-            <button onclick="openAuthModal('login')" class="btn btn-ghost btn-lg">Sign In</button>
-        <?php endif; ?>
-    </div>
-</section>
-
 <!-- AUTH MODAL -->
-<?php $modal_open = (!empty($login_error) || !empty($reg_error) || !empty($forgot_error) || !empty($forgot_success)); ?>
+<?php $modal_open = (!empty($login_error) || !empty($reg_error) || !empty($forgot_error) || !empty($forgot_success) || !empty($_GET['auth'])); ?>
 <div class="auth-overlay <?php echo $modal_open ? 'open' : ''; ?>" id="authOverlay" onclick="if(event.target===this) closeAuthModal()">
     <div class="auth-card">
         <button class="auth-close" onclick="closeAuthModal()" aria-label="Close modal">✕</button>
@@ -1064,8 +1019,8 @@ body > * { position: relative; z-index: 1; }
                 <input type="hidden" name="active_tab" value="login">
 
                 <div class="auth-field">
-                    <label>Email address or Username</label>
-                    <input type="text" name="email" required autocomplete="off" placeholder="name@example.com or username">
+                    <label>Email address</label>
+                    <input type="email" name="email" required autocomplete="off" placeholder="name@example.com">
                 </div>
 
                 <div class="auth-field">
@@ -1105,12 +1060,7 @@ body > * { position: relative; z-index: 1; }
 
                 <div class="auth-field">
                     <label>Full Name</label>
-                    <input type="text" name="full_name" required autocomplete="off" placeholder="John Doe" maxlength="100">
-                </div>
-
-                <div class="auth-field">
-                    <label>Username</label>
-                    <input type="text" name="username" required autocomplete="off" placeholder="e.g. alex_99" maxlength="30" pattern="[a-zA-Z0-9_-]{3,30}" title="3-30 characters (letters, numbers, underscores, hyphens)">
+                    <input type="text" name="full_name" required autocomplete="off" placeholder="Stephen Musyoki" maxlength="100">
                 </div>
 
                 <div class="auth-field">
@@ -1141,7 +1091,7 @@ body > * { position: relative; z-index: 1; }
         <!-- FORGOT PASSWORD VIEW -->
         <div class="auth-view <?php echo ($active_auth_tab === 'forgot') ? 'active' : ''; ?>" id="viewForgot">
             <h2 style="font-family:var(--font-head);font-size:22px;font-weight:700;margin-bottom:4px;color:var(--text-1);">Reset Password</h2>
-            <p style="font-size:13px;color:var(--text-2);margin-bottom:20px;">Enter your registered email address or username to receive a password reset link.</p>
+            <p style="font-size:13px;color:var(--text-2);margin-bottom:20px;">Enter your registered email address to receive a password reset link.</p>
 
             <?php if (!empty($forgot_error)): ?>
                 <div class="auth-error"><?php echo htmlspecialchars($forgot_error); ?></div>
@@ -1159,8 +1109,8 @@ body > * { position: relative; z-index: 1; }
                 <input type="hidden" name="active_tab" value="forgot">
 
                 <div class="auth-field">
-                    <label>Email address or Username</label>
-                    <input type="text" name="email" required autocomplete="off" placeholder="name@example.com or username">
+                    <label>Email address</label>
+                    <input type="email" name="email" required autocomplete="off" placeholder="name@example.com">
                 </div>
 
                 <button type="submit" class="auth-submit-btn">Send Reset Link →</button>

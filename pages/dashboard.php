@@ -1,18 +1,19 @@
 <?php
-// ── TEMP DEBUG — remove after fixing ──
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-// ──────────────────────────────────────
 session_start();
-include('../core/db.php');
+require_once __DIR__ . '/../core/db.php';
 
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../auth/login.php");
     exit;
 }
 
+if (($_SESSION['role'] ?? '') === 'admin') {
+    header("Location: admin_dashboard.php");
+    exit();
+}
+
 $user_id = (int) $_SESSION['user_id']; 
+$user_name = $_SESSION['name'] ?? 'User'; 
 
 /* ── MONTHLY TREND ── */
 $months  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -21,7 +22,7 @@ $monthly = array_fill(0, 12, 0);
 $res = $conn->query("
     SELECT MONTH(created_at) m, SUM(amount) total
     FROM transactions
-    WHERE user_id = $user_id AND type = 'expense'
+    WHERE user_id = $user_id AND type = 'expense' AND is_deleted_by_user = 0
     GROUP BY m
 ");
 if ($res && $res->num_rows > 0) {
@@ -39,7 +40,7 @@ $colors    = ['#4F46E5','#E11D48','#059669','#D97706','#0891B2','#7C3AED','#EA58
 $q = $conn->query("
     SELECT category, SUM(amount) total
     FROM transactions
-    WHERE user_id = $user_id AND type = 'expense'
+    WHERE user_id = $user_id AND type = 'expense' AND is_deleted_by_user = 0
     GROUP BY category
     ORDER BY total DESC
 ");
@@ -55,25 +56,21 @@ if ($q && $q->num_rows > 0) {
     }
 }
 
-
-$stmt = $conn->prepare("SELECT SUM(amount) total FROM transactions WHERE user_id = ? AND type = 'income'");
+$stmt = $conn->prepare("SELECT SUM(amount) total FROM transactions WHERE user_id = ? AND type = 'income' AND is_deleted_by_user = 0");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $totalIncome = (int) $stmt->get_result()->fetch_assoc()['total'];
 
 $netBalance = $totalIncome - $totalExpense;
 
-
-$stmt = $conn->prepare("SELECT COUNT(*) cnt FROM transactions WHERE user_id = ?");
+$stmt = $conn->prepare("SELECT COUNT(*) cnt FROM transactions WHERE user_id = ? AND is_deleted_by_user = 0");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $txCount = (int) $stmt->get_result()->fetch_assoc()['cnt'];
 
-
-
 $recent = $conn->query("
     SELECT * FROM transactions
-    WHERE user_id = $user_id
+    WHERE user_id = $user_id AND is_deleted_by_user = 0
     ORDER BY created_at DESC, transaction_id DESC
     LIMIT 8
 ");
@@ -686,10 +683,6 @@ body > * { position: relative; z-index: 1; }
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0h6m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2zM9 19H5a2 2 0 01-2-2v-3a2 2 0 012-2h2"/></svg>
                 <span class="nav-label">Reports</span>
             </a>
-            <a href="../pages/savings_goal.php" class="nav-item" title="Savings Goals">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                <span class="nav-label">Savings Goals</span>
-            </a>
             <div class="nav-section-label" style="margin-top:16px;">Account</div>
             <a href="/finance_system/pages/settings.php" class="nav-item" title="Settings">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -703,9 +696,12 @@ body > * { position: relative; z-index: 1; }
 
         <div class="sidebar-footer">
             <div class="user-row">
-                <div class="user-avatar">U</div>
+                <div class="user-avatar"><?= strtoupper(substr($user_name, 0, 1)) ?></div>
                 <div class="nav-label">
-                    <div class="user-name">My Account</div>
+                    <div class="user-name"><?= htmlspecialchars($user_name) ?></div>
+                    <?php if (($_SESSION['role'] ?? '') === 'admin'): ?>
+                    <div style="font-size:10px;color:#FF6B35;font-weight:700;letter-spacing:.5px;">ADMINISTRATOR</div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -1191,7 +1187,7 @@ document.getElementById('txForm').addEventListener('submit', function(e) {
     btn.disabled = true;
     btn.textContent = 'Saving…';
 
-    fetch('/finance_system/actions/add_transaction.php', { method: 'POST', body: new FormData(this) })
+    fetch('../actions/add_transaction.php', { method: 'POST', body: new FormData(this) })
         .then(r => r.text())
         .then(text => {
             let d;

@@ -49,58 +49,15 @@ if (isset($_POST['ajax'])) {
             exit();
         }
 
-        $profile_pic = $user['profile_pic'] ?: 'default.png';
-        if (!empty($_FILES['profile_pic']['name'])) {
-            $allowed = ['image/jpeg','image/png','image/gif','image/webp'];
-            $max_size = 2 * 1024 * 1024; // 2MB
-
-            if ($_FILES['profile_pic']['size'] > $max_size) {
-                echo json_encode(['status' => 'error', 'message' => 'Image must be under 2MB.', 'csrf_token' => csrf_token()]);
-                exit();
-            }
-
-            $finfo     = finfo_open(FILEINFO_MIME_TYPE);
-            $mime      = finfo_file($finfo, $_FILES['profile_pic']['tmp_name']);
-            finfo_close($finfo);
-
-            if (in_array($mime, $allowed)) {
-                $ext  = pathinfo($_FILES['profile_pic']['name'], PATHINFO_EXTENSION);
-                $file = time() . '_' . $user_id . '.' . strtolower($ext);
-                $uploadDir = __DIR__ . '/../uploads/';
-                if (!is_dir($uploadDir)) { mkdir($uploadDir, 0755, true); }
-                if (move_uploaded_file($_FILES['profile_pic']['tmp_name'], $uploadDir . $file)) {
-                    $profile_pic = $file;
-                }
-            } else {
-                echo json_encode(['status' => 'error', 'message' => 'Only JPG, PNG, GIF or WEBP images are allowed.', 'csrf_token' => csrf_token()]);
-                exit();
-            }
-        }
-
-        $stmt = $conn->prepare("UPDATE users SET full_name=?, name=?, email=?, phone=?, status_message=?, profile_pic=? WHERE user_id=?");
-        $stmt->bind_param("ssssssi", $name, $name, $email, $phone, $bio, $profile_pic, $user_id);
-        $stmt->execute(); $stmt->close();
+        $stmt = $conn->prepare("UPDATE users SET full_name=?, name=?, email=?, phone=?, status_message=? WHERE user_id=?");
+        $stmt->bind_param("sssssi", $name, $name, $email, $phone, $bio, $user_id);
+        $stmt->execute();
+        $stmt->close();
 
         $_SESSION['name']  = $name;
         $_SESSION['email'] = $email;
 
-        echo json_encode(['status' => 'ok', 'name' => $name, 'email' => $email, 'profile_pic' => $profile_pic, 'csrf_token' => csrf_token()]);
-
-    } elseif ($action === 'preferences') {
-        $language = trim($_POST['language'] ?? 'en');
-        $theme    = trim($_POST['theme'] ?? 'dark');
-
-        $allowed_languages = ['en', 'sw', 'fr', 'ar'];
-        $allowed_themes    = ['light', 'dark', 'auto'];
-
-        $language = in_array($language, $allowed_languages) ? $language : 'en';
-        $theme    = in_array($theme, $allowed_themes) ? $theme : 'dark';
-
-        $stmt = $conn->prepare("UPDATE users SET language=?, theme=? WHERE user_id=?");
-        $stmt->bind_param("ssi", $language, $theme, $user_id);
-        $stmt->execute(); $stmt->close();
-
-        echo json_encode(['status' => 'ok', 'theme' => $theme, 'language' => $language, 'csrf_token' => csrf_token()]);
+        echo json_encode(['status' => 'ok', 'name' => $name, 'email' => $email, 'csrf_token' => csrf_token()]);
 
     } elseif ($action === 'password') {
         $current = $_POST['current_password'] ?? '';
@@ -134,13 +91,10 @@ if (isset($_POST['ajax'])) {
     exit();
 }
 
-$pic_file = $user['profile_pic'] ?? 'default.png';
-$pic_path = __DIR__ . '/../uploads/' . $pic_file;
-$has_pic = !empty($pic_file) && $pic_file !== 'default.png' && file_exists($pic_path);
 $user_display_name = !empty($user['full_name']) ? $user['full_name'] : (!empty($user['name']) ? $user['name'] : 'User');
 ?>
 <!DOCTYPE html>
-<html lang="en" data-theme="<?php echo htmlspecialchars($user['theme'] ?? 'dark'); ?>">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -150,13 +104,10 @@ $user_display_name = !empty($user['full_name']) ? $user['full_name'] : (!empty($
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/fintrack.css">
 <style>
-.avatar-wrap { width: 84px; height: 84px; border-radius: 50%; background: linear-gradient(135deg,#FFD18A,#FF8A5A); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 700; color: #1F1B2F; position: relative; cursor: pointer; overflow: hidden; border: 3px solid var(--surface-2); box-shadow: var(--shadow-md); }
-.avatar-wrap img { width: 100%; height: 100%; object-fit: cover; }
-.avatar-overlay { position: absolute; inset: 0; background: rgba(0,0,0,.5); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; opacity: 0; transition: opacity .2s; }
-.avatar-wrap:hover .avatar-overlay { opacity: 1; }
-.avatar-section { display: flex; align-items: center; gap: 20px; margin-bottom: 24px; padding: 16px; background: var(--surface-2); border-radius: var(--radius-lg); border: 1px solid var(--line); }
-.avatar-info h3 { font-size: 16px; font-weight: 700; color: var(--text-1); margin-bottom: 2px; }
-.avatar-info p { font-size: 12px; color: var(--text-2); }
+.user-profile-badge { width: 56px; height: 56px; border-radius: 50%; background: linear-gradient(135deg,#FFD18A,#FF8A5A); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; color: #1F1B2F; flex-shrink: 0; box-shadow: var(--shadow-sm); }
+.user-profile-summary { display: flex; align-items: center; gap: 18px; margin-bottom: 24px; padding: 18px 20px; background: var(--surface-2); border-radius: var(--radius-lg); border: 1px solid var(--line); }
+.user-profile-info h3 { font-size: 16px; font-weight: 700; color: var(--text-1); margin: 0 0 2px; }
+.user-profile-info p { font-size: 12px; color: var(--text-2); margin: 0 0 6px; }
 .settings-tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
 .settings-tab { padding: 8px 18px; border-radius: var(--radius); border: 1px solid transparent; background: transparent; font-size: 13.5px; font-weight: 600; color: var(--text-2); cursor: pointer; transition: all .15s; }
 .settings-tab:hover { color: var(--text-1); background: var(--surface-2); }
@@ -187,6 +138,25 @@ $user_display_name = !empty($user['full_name']) ? $user['full_name'] : (!empty($
         </div>
 
         <nav class="sidebar-nav">
+            <?php if (($_SESSION['role'] ?? '') === 'admin'): ?>
+            <div class="nav-section-label">Overview</div>
+            <a href="admin_dashboard.php" class="nav-item" title="Dashboard">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10-3a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1v-7z"/></svg>
+                <span class="nav-label">System Overview</span>
+            </a>
+
+            <div class="nav-section-label" style="margin-top:16px;">Management</div>
+            <a href="users.php" class="nav-item" title="Users">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                <span class="nav-label">User Directory</span>
+            </a>
+
+            <div class="nav-section-label" style="margin-top:16px;">Analytics</div>
+            <a href="reports.php" class="nav-item" title="Reports">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0h6m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2zM9 19H5a2 2 0 01-2-2v-3a2 2 0 012-2h2"/></svg>
+                <span class="nav-label">System Reports</span>
+            </a>
+            <?php else: ?>
             <div class="nav-section-label">Overview</div>
             <a href="../pages/dashboard.php" class="nav-item" title="Dashboard">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10-3a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1v-7z"/></svg>
@@ -206,10 +176,16 @@ $user_display_name = !empty($user['full_name']) ? $user['full_name'] : (!empty($
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0h6m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2zM9 19H5a2 2 0 01-2-2v-3a2 2 0 012-2h2"/></svg>
                 <span class="nav-label">Reports</span>
             </a>
+            <?php endif; ?>
+
             <div class="nav-section-label" style="margin-top:16px;">Account</div>
             <a href="/finance_system/pages/settings.php" class="nav-item active" title="Settings">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                 <span class="nav-label">Settings</span>
+            </a>
+            <a href="../auth/logout.php" class="nav-item" title="Logout">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                <span class="nav-label">Logout</span>
             </a>
         </nav>
 
@@ -236,7 +212,7 @@ $user_display_name = !empty($user['full_name']) ? $user['full_name'] : (!empty($
                 </div>
             </div>
             <div class="topbar-right">
-                <a href="../pages/dashboard.php" class="btn btn-primary">
+                <a href="<?php echo (($_SESSION['role'] ?? '') === 'admin') ? 'admin_dashboard.php' : 'dashboard.php'; ?>" class="btn btn-primary">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
                     Back to Dashboard
                 </a>
@@ -262,22 +238,15 @@ $user_display_name = !empty($user['full_name']) ? $user['full_name'] : (!empty($
                     <div class="card-title">Personal Information</div>
                     <div class="card-sub" style="margin-bottom:20px;">Update your name, email, phone number and bio</div>
 
-                    <div class="avatar-section">
-                        <div class="avatar-wrap" onclick="document.getElementById('avatarInput').click()" id="avatarContainer">
-                            <?php if ($has_pic): ?>
-                                <img id="avatarPreview" src="../uploads/<?php echo htmlspecialchars($pic_file); ?>" alt="Avatar">
-                            <?php else: ?>
-                                <span id="avatarInitial"><?php echo strtoupper(substr($user_display_name, 0, 1)); ?></span>
-                                <img id="avatarPreview" src="" alt="Avatar" style="display:none;">
-                            <?php endif; ?>
-                            <div class="avatar-overlay">📷<br>Change</div>
+                    <div class="user-profile-summary">
+                        <div class="user-profile-badge" id="avatarInitial">
+                            <?php echo strtoupper(substr($user_display_name, 0, 1)); ?>
                         </div>
-                        <div class="avatar-info">
+                        <div class="user-profile-info">
                             <h3 id="displayName"><?php echo htmlspecialchars($user_display_name); ?></h3>
                             <p id="displayEmail"><?php echo htmlspecialchars($user['email']); ?></p>
-                            <span class="badge pill-neutral" style="margin-top:6px;"><?php echo strtoupper($user['role'] ?? 'USER'); ?></span>
+                            <span class="badge pill-neutral"><?php echo strtoupper($user['role'] ?? 'USER'); ?></span>
                         </div>
-                        <input type="file" id="avatarInput" accept="image/*" style="display:none" onchange="previewAvatar(this)">
                     </div>
 
                     <div class="form-row">
@@ -355,37 +324,17 @@ function showToast(msg, type = 'success') {
     setTimeout(() => t.classList.remove('show'), 3200);
 }
 
-function previewAvatar(input) {
-    if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = e => {
-            const preview = document.getElementById('avatarPreview');
-            const initial = document.getElementById('avatarInitial');
-            preview.src = e.target.result;
-            preview.style.display = 'block';
-            if (initial) initial.style.display = 'none';
-        };
-        reader.readAsDataURL(input.files[0]);
-    }
-}
-
 function validateProfileForm() {
     const name  = document.getElementById('fullName').value.trim();
     const email = document.getElementById('email').value.trim();
     const phone = document.getElementById('phone').value.trim();
     const bio   = document.getElementById('bio').value.trim();
-    const file  = document.getElementById('avatarInput').files[0];
 
     if (name.length < 2) return 'Please enter your full name.';
     if (name.length > 100) return 'Name must be under 100 characters.';
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Please enter a valid email address.';
     if (phone && !/^[0-9+\-\s()]{7,20}$/.test(phone)) return 'Please enter a valid phone number.';
     if (bio.length > 300) return 'Bio must be under 300 characters.';
-    if (file) {
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-        if (!allowedTypes.includes(file.type)) return 'Only JPG, PNG, GIF or WEBP images are allowed.';
-        if (file.size > 2 * 1024 * 1024) return 'Image must be under 2MB.';
-    }
     return null;
 }
 
@@ -401,8 +350,6 @@ function saveProfile() {
     fd.append('email', document.getElementById('email').value);
     fd.append('phone', document.getElementById('phone').value);
     fd.append('status_message', document.getElementById('bio').value);
-    const file = document.getElementById('avatarInput').files[0];
-    if (file) fd.append('profile_pic', file);
 
     fetch('settings.php', { method: 'POST', body: fd })
         .then(r => r.json())
@@ -414,47 +361,17 @@ function saveProfile() {
                 document.getElementById('displayName').textContent = nameVal;
                 document.getElementById('displayEmail').textContent = emailVal;
                 document.getElementById('sidebarName').textContent = nameVal;
-                document.getElementById('sidebarAvatar').textContent = nameVal.charAt(0).toUpperCase();
+                const initialChar = nameVal.charAt(0).toUpperCase();
+                document.getElementById('sidebarAvatar').textContent = initialChar;
+                const avatarInit = document.getElementById('avatarInitial');
+                if (avatarInit) avatarInit.textContent = initialChar;
 
-                if (d.profile_pic) {
-                    const preview = document.getElementById('avatarPreview');
-                    const initial = document.getElementById('avatarInitial');
-                    preview.src = '../uploads/' + d.profile_pic + '?v=' + Date.now();
-                    preview.style.display = 'block';
-                    if (initial) initial.style.display = 'none';
-                }
-                document.getElementById('avatarInput').value = '';
                 showToast('Profile updated successfully');
             } else {
                 showToast(d.message || 'Error saving profile', 'error');
             }
         })
         .catch(() => showToast('An error occurred while saving profile.', 'error'));
-}
-
-function savePreferences() {
-    const theme = document.getElementById('themeSelect').value;
-    const language = document.getElementById('languageSelect').value;
-
-    const fd = new FormData();
-    fd.append('ajax', 1);
-    fd.append('action', 'preferences');
-    fd.append('csrf_token', CSRF_TOKEN);
-    fd.append('theme', theme);
-    fd.append('language', language);
-
-    fetch('settings.php', { method: 'POST', body: fd })
-        .then(r => r.json())
-        .then(d => {
-            if (d.csrf_token) CSRF_TOKEN = d.csrf_token;
-            if (d.status === 'ok') {
-                document.documentElement.setAttribute('data-theme', theme);
-                showToast('Preferences updated successfully');
-            } else {
-                showToast(d.message || 'Error updating preferences', 'error');
-            }
-        })
-        .catch(() => showToast('An error occurred while saving preferences.', 'error'));
 }
 
 function resetProfile() {

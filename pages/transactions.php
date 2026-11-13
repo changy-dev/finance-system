@@ -1,10 +1,15 @@
 <?php
 session_start();
-include '../core/db.php';
-require_once '../core/csrf.php';
+require_once __DIR__ . '/../core/db.php';
+require_once __DIR__ . '/../core/csrf.php';
 
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../auth/login.php");
+    exit();
+}
+
+if (($_SESSION['role'] ?? '') === 'admin') {
+    header("Location: admin_dashboard.php");
     exit();
 }
 
@@ -922,7 +927,7 @@ async function submitTx() {
   }
 
   const data  = new FormData(form);
-  const url   = id ? `/finance_system/actions/edit_transaction.php` : `/finance_system/actions/add_transaction.php`;
+  const url   = id ? `../actions/edit_transaction.php` : `../actions/add_transaction.php`;
   try {
     const res  = await fetch(url, {method:'POST', body: data});
     const text = await res.text();

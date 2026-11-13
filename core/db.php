@@ -1,14 +1,4 @@
 <?php
-// ── TEMP DEBUG — remove after fixing ──
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-// ──────────────────────────────────────
-// ============================================================
-// CRITICAL FIX #2: No more hardcoded credentials
-// Loads from .env file — root/empty password removed
-// ============================================================
-
 // Load .env file
 $env_path = __DIR__ . '/../.env';
 if (file_exists($env_path)) {
@@ -29,7 +19,8 @@ $pass = $_ENV['DB_PASS'] ?? '';
 $conn = new mysqli($host, $user, $pass, $db);
 
 if ($conn->connect_error) {
-    die("DB ERROR: " . $conn->connect_error); // TEMP DEBUG — revert after fixing
+    error_log("Database connection failed: " . $conn->connect_error);
+    die("Database connection failed. Please check your system configuration.");
 }
 
 $conn->set_charset('utf8mb4');
