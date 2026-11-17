@@ -228,6 +228,8 @@ $topCats = array_slice(array_combine($catLabels, $catTotals), 0, 5, true);
 </head>
 <body>
 
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
 <div class="layout" id="layout">
 
     <!-- SIDEBAR -->
@@ -311,7 +313,10 @@ $topCats = array_slice(array_combine($catLabels, $catTotals), 0, 5, true);
 
         <!-- TOPBAR -->
         <div class="topbar">
-            <div class="topbar-left">
+            <div class="topbar-left" style="display:flex;align-items:center;gap:10px;">
+                <button class="topbar-menu-btn" onclick="toggleSidebar()" aria-label="Toggle navigation">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                </button>
                 <div class="breadcrumb">
                     <a href="<?php echo $is_admin ? 'admin_dashboard.php' : 'dashboard.php'; ?>" style="color:inherit;text-decoration:none;">Dashboard</a>
                     <span class="breadcrumb-sep">›</span>
@@ -433,7 +438,9 @@ $topCats = array_slice(array_combine($catLabels, $catTotals), 0, 5, true);
                     </div>
                     <?php else: ?>
                     <div class="empty">
-                        <div class="empty-ico">📊</div>
+                        <div class="empty-ico">
+                            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-3);"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                        </div>
                         <div>No transactions in this period yet.</div>
                     </div>
                     <?php endif; ?>
@@ -457,7 +464,9 @@ $topCats = array_slice(array_combine($catLabels, $catTotals), 0, 5, true);
                     <div class="legend" id="catLegend"></div>
                     <?php else: ?>
                     <div class="empty">
-                        <div class="empty-ico">🍩</div>
+                        <div class="empty-ico">
+                            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-3);"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>
+                        </div>
                         <div>No expenses in this period yet.</div>
                     </div>
                     <?php endif; ?>
@@ -474,6 +483,7 @@ $topCats = array_slice(array_combine($catLabels, $catTotals), 0, 5, true);
                         </div>
                     </div>
                     <?php if (count($catLabels) > 0): ?>
+                    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
                     <table class="tx-table">
                         <thead>
                             <tr><th>Category</th><th>Amount</th><th>% of Spend</th></tr>
@@ -494,9 +504,12 @@ $topCats = array_slice(array_combine($catLabels, $catTotals), 0, 5, true);
                         <?php endforeach; ?>
                         </tbody>
                     </table>
+                    </div>
                     <?php else: ?>
                     <div class="empty">
-                        <div class="empty-ico">🔍</div>
+                        <div class="empty-ico">
+                            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-3);"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                        </div>
                         <div>Nothing to show for this period.</div>
                     </div>
                     <?php endif; ?>
@@ -634,6 +647,37 @@ if (catLabels.length > 0) {
             </div>`;
     });
 }
+
+function toggleSidebar() {
+    const layout  = document.getElementById('layout') || document.querySelector('.layout');
+    const sidebar = document.getElementById('sidebar') || document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (!sidebar) return;
+
+    if (window.innerWidth <= 900) {
+        const isOpen = sidebar.classList.toggle('open');
+        sidebar.classList.toggle('mobile-open', isOpen);
+        if (overlay) {
+            overlay.classList.toggle('open', isOpen);
+            overlay.classList.toggle('active', isOpen);
+        }
+        document.body.style.overflow = isOpen ? 'hidden' : '';
+    } else {
+        const collapsed = sidebar.classList.toggle('collapsed');
+        if (layout) layout.classList.toggle('sidebar-collapsed', collapsed);
+        localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
+    }
+}
+
+window.addEventListener('resize', function() {
+    if (window.innerWidth > 900) {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        if (sidebar) sidebar.classList.remove('open', 'mobile-open');
+        if (overlay) overlay.classList.remove('open', 'active');
+        document.body.style.overflow = '';
+    }
+});
 </script>
 </body>
 </html>

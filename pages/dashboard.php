@@ -537,6 +537,8 @@ body > * { position: relative; z-index: 1; }
     display: none; position: fixed; inset: 0;
     background: rgba(15,15,40,.4); backdrop-filter: blur(8px);
     z-index: 200; align-items: center; justify-content: center;
+    padding: 16px;
+    overflow-y: auto;
 }
 .modal-overlay.open { display: flex; }
 .modal {
@@ -544,6 +546,9 @@ body > * { position: relative; z-index: 1; }
     border: 1px solid var(--line);
     border-radius: var(--r-xl); padding: 30px;
     width: 480px; max-width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     box-shadow: var(--shadow-lg);
     animation: slideUp .2s cubic-bezier(.4,0,.2,1);
 }
@@ -626,28 +631,121 @@ body > * { position: relative; z-index: 1; }
 ::-webkit-scrollbar-thumb { background: rgba(30,27,75,.12); border-radius: 20px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255,107,53,.3); }
 
+/* ── MOBILE OVERLAY & DRAWER ── */
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 1040;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+.sidebar-overlay.active,
+.sidebar-overlay.open {
+    display: block;
+    opacity: 1;
+}
+
 /* ── RESPONSIVE ── */
 @media (max-width: 1100px) {
     .charts-row { grid-template-columns: 1fr; }
     .bottom-row { grid-template-columns: 1fr; }
     .stats-row { grid-template-columns: repeat(2, 1fr); }
 }
-@media (max-width: 768px) {
-    .sidebar { display: none; }
-    .main { margin-left: 0; }
-    .content { padding: 20px 16px 40px; }
-    .topbar { padding: 0 16px; }
-    .stats-row { grid-template-columns: 1fr 1fr; }
+
+@media (max-width: 900px) {
+    .sidebar {
+        display: flex !important;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        bottom: 0 !important;
+        width: 260px !important;
+        max-width: 82vw !important;
+        height: 100vh !important;
+        z-index: 1050 !important;
+        transform: translateX(-100%) !important;
+        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        box-shadow: none !important;
+    }
+    .sidebar.open,
+    .sidebar.mobile-open {
+        transform: translateX(0) !important;
+        box-shadow: 0 0 50px rgba(0, 0, 0, 0.6) !important;
+    }
+    .sidebar.collapsed {
+        width: 260px !important;
+    }
+    .sidebar.collapsed .brand-text,
+    .sidebar.collapsed .nav-label,
+    .sidebar.collapsed .nav-section-label {
+        opacity: 1 !important;
+        width: auto !important;
+        pointer-events: auto !important;
+        height: auto !important;
+    }
+    .sidebar.collapsed .nav-item {
+        justify-content: flex-start !important;
+        padding: 8px 10px !important;
+    }
+    .sidebar-toggle {
+        display: none !important;
+    }
+    .main {
+        margin-left: 0 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+    .topbar {
+        padding: 0 16px !important;
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 100 !important;
+        background: var(--surface) !important;
+        width: 100% !important;
+    }
+    .topbar-menu-btn {
+        display: inline-flex !important;
+    }
+    .content {
+        padding: 16px 14px 40px !important;
+    }
 }
-@media (max-width: 480px) { .stats-row { grid-template-columns: 1fr; } }
+
+@media (max-width: 768px) {
+    .topbar-date { display: none !important; }
+    .stats-row { grid-template-columns: 1fr 1fr; gap: 10px; }
+}
+
+@media (max-width: 640px) {
+    .form-row { grid-template-columns: 1fr !important; gap: 0 !important; }
+    .topbar-left .breadcrumb { display: none !important; }
+    .page-header { flex-direction: column !important; align-items: stretch !important; gap: 12px !important; }
+    .page-title { font-size: 20px !important; }
+    .stat-card { padding: 12px 14px !important; }
+    .stat-val { font-size: 17px !important; }
+    .tx-table th:nth-child(2), .tx-table td:nth-child(2) { display: none; }
+    .modal { padding: 20px 16px; border-radius: var(--r-lg); }
+    .modal .grid-2 { grid-template-columns: 1fr !important; gap: 10px; }
+}
+
+@media (max-width: 480px) {
+    .stats-row { grid-template-columns: 1fr !important; }
+    .topbar-right .btn span { display: none !important; }
+}
 </style>
 </head>
 <body>
 
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
 <div class="layout">
 
     <!-- SIDEBAR -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
         <div class="sidebar-brand">
             <div class="brand-mark">
                 <div class="brand-icon">
@@ -807,6 +905,7 @@ body > * { position: relative; z-index: 1; }
                     </div>
 
                     <?php if ($recent && $recent->num_rows > 0): ?>
+                    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
                     <table class="tx-table">
                         <thead>
                             <tr>
@@ -819,26 +918,6 @@ body > * { position: relative; z-index: 1; }
                         <tbody>
                         <?php while ($tx = $recent->fetch_assoc()):
                             $catKey = strtolower($tx['category']);
-                            $catEmojis = [
-                                'food'          => '🍽️',
-                                'transport'     => '🚌',
-                                'utilities'     => '💡',
-                                'entertainment' => '🎬',
-                                'shopping'      => '🛍️',
-                                'health'        => '🏥',
-                                'salary'        => '💼',
-                                'business'      => '🏢',
-                                'investments'   => '📈',
-                                'shares'        => '📊',
-                                'freelance'     => '💻',
-                                'family'        => '👨‍👩‍👧',
-                                'rental'        => '🏠',
-                                'gift'          => '🎁',
-                                'other income'  => '💰',
-                                'income'        => '💵',
-                                'other'         => '📦',
-                            ];
-                            $emoji    = $catEmojis[$catKey] ?? '📦';
                             $isIncome = strtolower($tx['type'] ?? 'expense') === 'income';
 
                             // Human-friendly date
@@ -862,7 +941,13 @@ body > * { position: relative; z-index: 1; }
                             <tr>
                                 <td>
                                     <div class="tx-cat-wrap">
-                                        <div class="tx-cat-icon cat-<?php echo htmlspecialchars($catKey); ?>"><?php echo $emoji; ?></div>
+                                        <div class="tx-cat-icon" style="background:<?php echo $isIncome ? '#ecfdf5' : '#fff1f2'; ?>;">
+                                            <?php if ($isIncome): ?>
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="7 17 17 7"/><polyline points="7 7 17 7 17 17"/></svg>
+                                            <?php else: ?>
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#E11D48" stroke-width="2.5"><polyline points="7 7 17 17"/><polyline points="17 7 17 17 7 17"/></svg>
+                                            <?php endif; ?>
+                                        </div>
                                         <div>
                                             <div class="tx-name"><?php echo htmlspecialchars(ucfirst($tx['category'])); ?></div>
                                             <?php if (!empty($tx['description'])): ?>
@@ -885,9 +970,12 @@ body > * { position: relative; z-index: 1; }
                         <?php endwhile; ?>
                         </tbody>
                     </table>
+                    </div>
                     <?php else: ?>
                         <div class="empty">
-                            <div class="empty-ico">💸</div>
+                            <div class="empty-ico">
+                                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-3);"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                            </div>
                             <div class="empty-txt">No transactions yet.<br>Click <strong>Add Transaction</strong> to get started.</div>
                         </div>
                     <?php endif; ?>
@@ -913,7 +1001,9 @@ body > * { position: relative; z-index: 1; }
                         <div class="legend" id="legend"></div>
                     <?php else: ?>
                         <div class="empty">
-                            <div class="empty-ico">📊</div>
+                            <div class="empty-ico">
+                                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-3);"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                            </div>
                             <div class="empty-txt">No expenses yet.<br>Add your first transaction.</div>
                         </div>
                     <?php endif; ?>
@@ -1077,30 +1167,30 @@ document.getElementById('modal').addEventListener('click', function(e) {
 /* CATEGORY OPTIONS */
 const expenseCategories = [
     // Food & Dining
-    { group: '🍽️ Food & Dining',        value: 'Groceries',               label: ' Groceries'               },
-    { group: '🍽️ Food & Dining',        value: 'Household Supplies',       label: ' Household Supplies'       },
-    { group: '🍽️ Food & Dining',        value: 'Eating Out',               label: ' Eating Out'               },
+    { group: 'Food & Dining',        value: 'Groceries',               label: ' Groceries'               },
+    { group: 'Food & Dining',        value: 'Household Supplies',       label: ' Household Supplies'       },
+    { group: 'Food & Dining',        value: 'Eating Out',               label: ' Eating Out'               },
     // Transport
-    { group: '🚌 Transport & Auto',      value: 'Fuel & Charging',          label: ' Fuel & Charging'          },
-    { group: '🚌 Transport & Auto',      value: 'Vehicle Maintenance',      label: ' Vehicle Maintenance'      },
-    { group: '🚌 Transport & Auto',      value: 'Commuting',                label: ' Commuting'                },
+    { group: 'Transport & Auto',      value: 'Fuel & Charging',          label: ' Fuel & Charging'          },
+    { group: 'Transport & Auto',      value: 'Vehicle Maintenance',      label: ' Vehicle Maintenance'      },
+    { group: 'Transport & Auto',      value: 'Commuting',                label: ' Commuting'                },
     // Utilities & Home
-    { group: '💡 Utilities & Home',      value: 'Utilities',                label: ' Utilities'                },
-    { group: '💡 Utilities & Home',      value: 'Home Decor',               label: ' Home Decor'              },
-    { group: '💡 Utilities & Home',      value: 'Maintenance & DIY',        label: ' Maintenance & DIY'        },
-    { group: '💡 Utilities & Home',      value: 'Kitchenware',              label: ' Kitchenware'              },
+    { group: 'Utilities & Home',      value: 'Utilities',                label: ' Utilities'                },
+    { group: 'Utilities & Home',      value: 'Home Decor',               label: ' Home Decor'              },
+    { group: 'Utilities & Home',      value: 'Maintenance & DIY',        label: ' Maintenance & DIY'        },
+    { group: 'Utilities & Home',      value: 'Kitchenware',              label: ' Kitchenware'              },
     // Health
-    { group: '🏥 Health & Wellness',     value: 'Health & Pharmacy',        label: ' Health & Pharmacy'        },
-    { group: '🏥 Health & Wellness',     value: 'Personal Grooming',        label: ' Personal Grooming'        },
+    { group: 'Health & Wellness',     value: 'Health & Pharmacy',        label: ' Health & Pharmacy'        },
+    { group: 'Health & Wellness',     value: 'Personal Grooming',        label: ' Personal Grooming'        },
     // Shopping
-    { group: '🛍️ Shopping & Lifestyle', value: 'Clothing & Accessories',   label: ' Clothing & Accessories'   },
-    { group: '🛍️ Shopping & Lifestyle', value: 'Electronics & Tech',       label: ' Electronics & Tech'       },
-    { group: '🛍️ Shopping & Lifestyle', value: 'Entertainment',            label: ' Entertainment'            },
+    { group: 'Shopping & Lifestyle', value: 'Clothing & Accessories',   label: ' Clothing & Accessories'   },
+    { group: 'Shopping & Lifestyle', value: 'Electronics & Tech',       label: ' Electronics & Tech'       },
+    { group: 'Shopping & Lifestyle', value: 'Entertainment',            label: ' Entertainment'            },
     // Misc
-    { group: '🎁 Miscellaneous',         value: 'Gifts & Celebrations',     label: ' Gifts & Celebrations'     },
-    { group: '🎁 Miscellaneous',         value: 'Pet Supplies',             label: ' Pet Supplies'             },
-    { group: '🎁 Miscellaneous',         value: 'Impulse Buys',             label: ' Impulse Buys'             },
-    { group: '🎁 Miscellaneous',         value: 'Other',                    label: ' Other'                    },
+    { group: 'Miscellaneous',         value: 'Gifts & Celebrations',     label: ' Gifts & Celebrations'     },
+    { group: 'Miscellaneous',         value: 'Pet Supplies',             label: ' Pet Supplies'             },
+    { group: 'Miscellaneous',         value: 'Impulse Buys',             label: ' Impulse Buys'             },
+    { group: 'Miscellaneous',         value: 'Other',                    label: ' Other'                    },
 ];
 
 const incomeCategories = [
@@ -1372,21 +1462,42 @@ if (catLabels.length > 0) {
     });
 }
 /* SIDEBAR TOGGLE */
-(function() {
+function toggleSidebar() {
     const layout = document.querySelector('.layout');
-    const sidebar = document.querySelector('.sidebar');
-    const toggleBtn = document.getElementById('sidebarToggle');
-    const topbarBtn = document.getElementById('topbarMenuBtn');
+    const sidebar = document.getElementById('sidebar') || document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (!sidebar) return;
 
-    function toggleSidebar() {
+    if (window.innerWidth <= 900) {
+        const isOpen = sidebar.classList.toggle('open');
+        sidebar.classList.toggle('mobile-open', isOpen);
+        if (overlay) {
+            overlay.classList.toggle('open', isOpen);
+            overlay.classList.toggle('active', isOpen);
+        }
+        document.body.style.overflow = isOpen ? 'hidden' : '';
+    } else {
         const collapsed = sidebar.classList.toggle('collapsed');
-        layout.classList.toggle('sidebar-collapsed', collapsed);
+        if (layout) layout.classList.toggle('sidebar-collapsed', collapsed);
         localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
     }
+}
 
+(function() {
+    const toggleBtn = document.getElementById('sidebarToggle');
+    const topbarBtn = document.getElementById('topbarMenuBtn');
     if (toggleBtn) toggleBtn.addEventListener('click', toggleSidebar);
     if (topbarBtn) topbarBtn.addEventListener('click', toggleSidebar);
 
+    window.addEventListener('resize', function() {
+        if (window.innerWidth > 900) {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            if (sidebar) sidebar.classList.remove('open', 'mobile-open');
+            if (overlay) overlay.classList.remove('open', 'active');
+            document.body.style.overflow = '';
+        }
+    });
 })();
 </script>
 </body>

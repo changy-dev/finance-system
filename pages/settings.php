@@ -117,14 +117,33 @@ $user_display_name = !empty($user['full_name']) ? $user['full_name'] : (!empty($
 .strength-bar { display: flex; gap: 4px; margin-top: 8px; }
 .strength-seg { flex: 1; height: 4px; border-radius: 2px; background: var(--line); transition: background .2s; }
 .strength-label { font-size: 11px; margin-top: 4px; color: var(--text-2); }
+.pwd-wrap { position: relative; display: flex; align-items: center; width: 100%; }
+.pwd-wrap input { width: 100%; padding-right: 42px; }
+.pwd-toggle-btn {
+    position: absolute;
+    right: 10px;
+    background: transparent;
+    border: none;
+    color: var(--text-2);
+    cursor: pointer;
+    padding: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: color .15s;
+}
+.pwd-toggle-btn:hover { color: var(--text-1); }
 </style>
 </head>
 <body>
 
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
 <div class="layout">
 
     <!-- SIDEBAR -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
         <div class="sidebar-brand">
             <div class="brand-mark">
                 <div class="brand-icon">
@@ -204,7 +223,10 @@ $user_display_name = !empty($user['full_name']) ? $user['full_name'] : (!empty($
 
         <!-- TOPBAR -->
         <div class="topbar">
-            <div class="topbar-left">
+            <div class="topbar-left" style="display:flex;align-items:center;gap:10px;">
+                <button class="topbar-menu-btn" onclick="toggleSidebar()" aria-label="Toggle navigation">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                </button>
                 <div class="breadcrumb">
                     <span>Home</span>
                     <span class="breadcrumb-sep">›</span>
@@ -214,7 +236,7 @@ $user_display_name = !empty($user['full_name']) ? $user['full_name'] : (!empty($
             <div class="topbar-right">
                 <a href="<?php echo (($_SESSION['role'] ?? '') === 'admin') ? 'admin_dashboard.php' : 'dashboard.php'; ?>" class="btn btn-primary">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-                    Back to Dashboard
+                    <span>Back to Dashboard</span>
                 </a>
             </div>
         </div>
@@ -282,11 +304,21 @@ $user_display_name = !empty($user['full_name']) ? $user['full_name'] : (!empty($
                     <div class="card-sub" style="margin-bottom:20px;">Use a strong password with at least 8 characters</div>
                     <div class="field">
                         <label>Current Password</label>
-                        <input type="password" id="currentPass" placeholder="Enter current password">
+                        <div class="pwd-wrap">
+                            <input type="password" id="currentPass" placeholder="Enter current password">
+                            <button type="button" class="pwd-toggle-btn" onclick="togglePasswordVisibility('currentPass', this)" title="Show/Hide Password" aria-label="Toggle password visibility">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                            </button>
+                        </div>
                     </div>
                     <div class="field">
                         <label>New Password</label>
-                        <input type="password" id="newPass" placeholder="Enter new password" oninput="checkStrength(this.value)">
+                        <div class="pwd-wrap">
+                            <input type="password" id="newPass" placeholder="Enter new password" oninput="checkStrength(this.value)">
+                            <button type="button" class="pwd-toggle-btn" onclick="togglePasswordVisibility('newPass', this)" title="Show/Hide Password" aria-label="Toggle password visibility">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                            </button>
+                        </div>
                         <div class="strength-bar">
                             <div class="strength-seg" id="s1"></div><div class="strength-seg" id="s2"></div>
                             <div class="strength-seg" id="s3"></div><div class="strength-seg" id="s4"></div>
@@ -295,7 +327,12 @@ $user_display_name = !empty($user['full_name']) ? $user['full_name'] : (!empty($
                     </div>
                     <div class="field">
                         <label>Confirm New Password</label>
-                        <input type="password" id="confirmPass" placeholder="Confirm new password">
+                        <div class="pwd-wrap">
+                            <input type="password" id="confirmPass" placeholder="Confirm new password">
+                            <button type="button" class="pwd-toggle-btn" onclick="togglePasswordVisibility('confirmPass', this)" title="Show/Hide Password" aria-label="Toggle password visibility">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                            </button>
+                        </div>
                     </div>
                     <button class="btn btn-primary" onclick="savePassword()">Update Password</button>
                 </div>
@@ -423,7 +460,15 @@ function savePassword() {
             if (d.csrf_token) CSRF_TOKEN = d.csrf_token;
             if (d.status === 'ok') {
                 showToast('Password updated successfully');
-                ['currentPass','newPass','confirmPass'].forEach(id => document.getElementById(id).value = '');
+                ['currentPass','newPass','confirmPass'].forEach(id => {
+                    const inp = document.getElementById(id);
+                    if (inp) {
+                        inp.value = '';
+                        inp.type = 'password';
+                        const btn = inp.parentElement ? inp.parentElement.querySelector('.pwd-toggle-btn') : null;
+                        if (btn) btn.innerHTML = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>`;
+                    }
+                });
                 checkStrength('');
             } else {
                 showToast(d.message || 'Error updating password', 'error');
@@ -431,6 +476,49 @@ function savePassword() {
         })
         .catch(() => showToast('An error occurred while updating password.', 'error'));
 }
+
+function togglePasswordVisibility(inputId, btn) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const isPassword = input.type === 'password';
+    input.type = isPassword ? 'text' : 'password';
+
+    const eyeOpen = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>`;
+    const eyeClosed = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858-5.908A8.962 8.962 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21M3 3l18 18"/></svg>`;
+
+    btn.innerHTML = isPassword ? eyeClosed : eyeOpen;
+}
+
+function toggleSidebar() {
+    const layout  = document.querySelector('.layout');
+    const sidebar = document.getElementById('sidebar') || document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (!sidebar) return;
+
+    if (window.innerWidth <= 900) {
+        const isOpen = sidebar.classList.toggle('open');
+        sidebar.classList.toggle('mobile-open', isOpen);
+        if (overlay) {
+            overlay.classList.toggle('open', isOpen);
+            overlay.classList.toggle('active', isOpen);
+        }
+        document.body.style.overflow = isOpen ? 'hidden' : '';
+    } else {
+        const collapsed = sidebar.classList.toggle('collapsed');
+        if (layout) layout.classList.toggle('sidebar-collapsed', collapsed);
+        localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
+    }
+}
+
+window.addEventListener('resize', function() {
+    if (window.innerWidth > 900) {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        if (sidebar) sidebar.classList.remove('open', 'mobile-open');
+        if (overlay) overlay.classList.remove('open', 'active');
+        document.body.style.overflow = '';
+    }
+});
 </script>
 </body>
 </html>

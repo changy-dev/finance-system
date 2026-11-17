@@ -16,7 +16,6 @@ if (($_SESSION['role'] ?? '') === 'admin') {
 $user_id = (int) $_SESSION['user_id'];
 
 /* ── FILTERS ── */
-$search   = trim($_GET['search']   ?? '');
 $type     = trim($_GET['type']     ?? '');
 $category = trim($_GET['category'] ?? '');
 $date_from = trim($_GET['date_from'] ?? '');
@@ -31,12 +30,6 @@ $where = "WHERE user_id=? AND is_deleted_by_user=0";
 $params = [$user_id];
 $types  = 'i';
 
-if ($search !== '') {
-    $where .= " AND (category LIKE ? OR description LIKE ?)";
-    $like = '%' . $search . '%';
-    $params[] = $like; $params[] = $like;
-    $types .= 'ss';
-}
 if ($type !== '') {
     $where .= " AND type=?";
     $params[] = $type; $types .= 's';
@@ -109,7 +102,7 @@ function qs($extra=[]) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🧾Transactions</title>
+<title>Transactions — Fintrack</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -440,17 +433,32 @@ textarea.form-control{height:auto;padding:10px 12px;resize:vertical;}
 .toast.success{border-left:3px solid var(--green);}
 .toast.error{border-left:3px solid var(--red);}
 
+.topbar-menu-btn {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--text-1);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.topbar-menu-btn:hover { background: var(--surface-3); }
+
 /* ── RESPONSIVE ── */
 @media(max-width:900px){
-    .hamburger{display:flex;}
+    .topbar-menu-btn{display:inline-flex;}
+    .hamburger{display:none;}
     .sidebar{transform:translateX(-100%);}
-    .sidebar.open{transform:translateX(0);}
+    .sidebar.open{transform:translateX(0);box-shadow:0 0 50px rgba(0,0,0,.6);}
     .sidebar-overlay.open{display:block;}
-    .main{margin-left:0;padding:20px 16px;padding-top:64px;}
-    .stats-row{grid-template-columns:repeat(2,1fr);}
+    .main{margin-left:0;padding:16px 14px 40px;}
+    .stats-row{grid-template-columns:repeat(2,1fr);gap:10px;}
     .filter-form{flex-direction:column;}
     .filter-group{width:100%;}
-    .search-wrap{width:100%;}
     th:nth-child(4),td:nth-child(4){display:none;}
 }
 @media(max-width:600px){
@@ -459,6 +467,10 @@ textarea.form-control{height:auto;padding:10px 12px;resize:vertical;}
     th:nth-child(2),td:nth-child(2){display:none;}
     .topbar-actions .btn span{display:none;}
     .form-row{grid-template-columns:1fr;}
+    .page-title{font-size:19px;}
+}
+@media(max-width:400px){
+    .stats-row{grid-template-columns:1fr;}
 }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
@@ -557,11 +569,16 @@ textarea.form-control{height:auto;padding:10px 12px;resize:vertical;}
 
   <!-- TOPBAR -->
   <div class="topbar">
-    <div>
-      <div class="page-title">Transactions</div>
-      <div class="page-sub">
-        <?php echo number_format($total_rows); ?> record<?php echo $total_rows != 1 ? 's' : ''; ?>
-        <?php if ($search || $type || $category || $date_from || $date_to) echo ' matching filters'; ?>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="topbar-menu-btn" onclick="toggleSidebar()" aria-label="Toggle navigation">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <div>
+        <div class="page-title">Transactions</div>
+        <div class="page-sub">
+          <?php echo number_format($total_rows); ?> record<?php echo $total_rows != 1 ? 's' : ''; ?>
+          <?php if ($type || $category || $date_from || $date_to) echo ' matching filters'; ?>
+        </div>
       </div>
     </div>
     <div class="topbar-actions">
@@ -595,11 +612,6 @@ textarea.form-control{height:auto;padding:10px 12px;resize:vertical;}
   <!-- FILTER BAR -->
   <div class="filter-bar">
     <form method="GET" class="filter-form" id="filterForm">
-      <div class="filter-group search-wrap">
-        <label>Search</label>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input type="text" name="search" class="filter-input search-input" placeholder="Category or description…" value="<?php echo htmlspecialchars($search); ?>">
-      </div>
       <div class="filter-group">
         <label>Type</label>
         <select name="type" class="filter-input" onchange="this.form.submit()">
@@ -633,11 +645,11 @@ textarea.form-control{height:auto;padding:10px 12px;resize:vertical;}
       <div class="filter-group">
         <label>&nbsp;</label>
         <button type="submit" class="btn btn-primary" style="height:36px;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          Search
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+          Filter
         </button>
       </div>
-      <?php if ($search || $type || $category || $date_from || $date_to): ?>
+      <?php if ($type || $category || $date_from || $date_to): ?>
       <div class="filter-group">
         <label>&nbsp;</label>
         <a href="../pages/transactions.php" class="btn btn-ghost" style="height:36px;">Clear</a>
@@ -647,7 +659,6 @@ textarea.form-control{height:auto;padding:10px 12px;resize:vertical;}
     </form>
     <?php
     $active_filters = [];
-    if ($search)    $active_filters[] = 'Search: "'.htmlspecialchars($search).'"';
     if ($type)      $active_filters[] = 'Type: '.ucfirst($type);
     if ($category)  $active_filters[] = 'Category: '.htmlspecialchars($category);
     if ($date_from) $active_filters[] = 'From: '.$date_from;
@@ -672,6 +683,7 @@ textarea.form-control{height:auto;padding:10px 12px;resize:vertical;}
     </div>
 
     <?php if ($transactions->num_rows > 0): ?>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
     <table>
       <thead>
         <tr>
@@ -687,14 +699,19 @@ textarea.form-control{height:auto;padding:10px 12px;resize:vertical;}
           $display_date = display_date($tx);
           $type_cls = strtolower($tx['type']) === 'income' ? 'income' : (strtolower($tx['type']) === 'expense' ? 'expense' : 'other');
           $sign = $type_cls === 'income' ? '+' : ($type_cls === 'expense' ? '-' : '');
-          $icons = ['Food'=>'🍔','Transport'=>'🚗','Utilities'=>'💡','Entertainment'=>'🎬','Shopping'=>'🛍️','Health'=>'💊','Salary'=>'💼','Business'=>'📊','Investments'=>'📈','Shares'=>'📉','Freelance'=>'💻','Family'=>'👨‍👩‍👧','Rental'=>'🏠','Gift'=>'🎁','Other'=>'📦','salary'=>'💼','rent'=>'🏠','car'=>'🚗','loan'=>'💳','stocks'=>'📈','laptop'=>'💻','Traveling'=>'✈️'];
-          $icon = $icons[$tx['category']] ?? '💰';
-          $bg = $type_cls === 'income' ? '#ecfdf5' : ($type_cls === 'expense' ? '#fff1f2' : '#fffbeb');
+          $isIncome = ($type_cls === 'income');
+          $bg = $isIncome ? '#ecfdf5' : '#fff1f2';
         ?>
         <tr>
           <td>
             <div class="tx-category">
-              <div class="tx-icon" style="background:<?php echo $bg; ?>"><?php echo $icon; ?></div>
+              <div class="tx-icon" style="background:<?php echo $bg; ?>; display:flex; align-items:center; justify-content:center;">
+                <?php if ($isIncome): ?>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="7 17 17 7"/><polyline points="7 7 17 7 17 17"/></svg>
+                <?php else: ?>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#E11D48" stroke-width="2.5"><polyline points="7 7 17 17"/><polyline points="17 7 17 17 7 17"/></svg>
+                <?php endif; ?>
+              </div>
               <div>
                 <div class="tx-name"><?php echo htmlspecialchars(ucfirst($tx['category'])); ?></div>
                 <?php if (!empty($tx['description'])): ?>
@@ -720,9 +737,10 @@ textarea.form-control{height:auto;padding:10px 12px;resize:vertical;}
         <?php endwhile; ?>
       </tbody>
     </table>
+    </div>
     <?php else: ?>
     <div class="empty">
-      <div class="empty-icon">🔍</div>
+      <div class="empty-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="opacity:.6;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
       <div class="empty-title">No transactions found</div>
       <div class="empty-sub">Try adjusting your filters or add a new transaction.</div>
     </div>
@@ -817,7 +835,9 @@ textarea.form-control{height:auto;padding:10px 12px;resize:vertical;}
       </button>
     </div>
     <div class="del-confirm">
-      <div class="del-confirm-icon">🗑️</div>
+      <div class="del-confirm-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#E11D48" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+      </div>
       <div class="del-confirm-title">Delete this transaction?</div>
       <div class="del-confirm-sub" id="delSub">This action cannot be undone.</div>
       <div style="display:flex;gap:10px;justify-content:center;">
@@ -994,14 +1014,6 @@ document.querySelectorAll('.modal-overlay').forEach(el => {
     if (e.target === this) this.classList.remove('open');
   });
 });
-
-// Search on Enter
-const searchInput = document.querySelector('.search-input');
-if (searchInput) {
-  searchInput.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') this.closest('form').submit();
-  });
-}
 
 // Show toast from URL params
 const urlMsg = new URLSearchParams(location.search).get('msg');

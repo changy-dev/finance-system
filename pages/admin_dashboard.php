@@ -95,28 +95,6 @@ if ($cat_q) {
 <link rel="stylesheet" href="../assets/fintrack.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-.admin-hero {
-    background: linear-gradient(135deg, rgba(255,107,53,.12) 0%, rgba(79,70,229,.10) 100%);
-    border: 1px solid rgba(255,107,53,.2);
-    border-radius: var(--radius-lg);
-    padding: 24px 28px;
-    margin-bottom: 24px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 16px;
-}
-.hero-title {
-    font-size: 22px;
-    font-weight: 800;
-    color: var(--text-1);
-    margin-bottom: 4px;
-}
-.hero-sub {
-    font-size: 13px;
-    color: var(--text-2);
-}
 .stats-4 {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -150,6 +128,8 @@ if ($cat_q) {
 </style>
 </head>
 <body>
+
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
 <div class="layout">
 
@@ -213,35 +193,26 @@ if ($cat_q) {
 
         <!-- TOPBAR -->
         <div class="topbar">
-            <div class="topbar-left">
+            <div class="topbar-left" style="display:flex;align-items:center;gap:10px;">
+                <button class="topbar-menu-btn" onclick="toggleSidebar()" aria-label="Toggle navigation">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                </button>
                 <div class="breadcrumbs">
-                    <span class="breadcrumb-item" style="color:#FF6B35;font-weight:700;">SYSTEM ADMINISTRATION</span>
-                    <span class="breadcrumb-sep">/</span>
-                    <span class="breadcrumb-current">Management Dashboard</span>
+                    <span>Admin</span>
+                    <span class="breadcrumb-sep">›</span>
+                    <span class="breadcrumb-current">Dashboard</span>
                 </div>
             </div>
             <div class="topbar-right">
                 <a href="users.php" class="btn btn-primary">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-                    Manage Users
+                    <span>Manage Users</span>
                 </a>
             </div>
         </div>
 
         <!-- CONTENT -->
         <div class="content">
-
-            <!-- HERO -->
-            <div class="admin-hero">
-                <div>
-                    <div class="hero-title">System Administration & Platform Overview</div>
-                    <div class="hero-sub">Welcome back, <?= htmlspecialchars($user_name) ?>. Real-time platform metrics, user directory, and global financial tracking.</div>
-                </div>
-                <div style="display:flex;gap:10px;">
-                    <a href="users.php" class="btn btn-ghost" style="border:1px solid var(--line);">User Directory →</a>
-                    <a href="reports.php" class="btn btn-ghost" style="border:1px solid var(--line);">System Reports →</a>
-                </div>
-            </div>
 
             <!-- METRIC CARDS -->
             <div class="stats-4">
@@ -373,6 +344,37 @@ new Chart(catCtx, {
             legend: { display: false }
         },
         cutout: '70%'
+    }
+});
+
+function toggleSidebar() {
+    const layout  = document.querySelector('.layout');
+    const sidebar = document.getElementById('sidebar') || document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (!sidebar) return;
+
+    if (window.innerWidth <= 900) {
+        const isOpen = sidebar.classList.toggle('open');
+        sidebar.classList.toggle('mobile-open', isOpen);
+        if (overlay) {
+            overlay.classList.toggle('open', isOpen);
+            overlay.classList.toggle('active', isOpen);
+        }
+        document.body.style.overflow = isOpen ? 'hidden' : '';
+    } else {
+        const collapsed = sidebar.classList.toggle('collapsed');
+        if (layout) layout.classList.toggle('sidebar-collapsed', collapsed);
+        localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
+    }
+}
+
+window.addEventListener('resize', function() {
+    if (window.innerWidth > 900) {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        if (sidebar) sidebar.classList.remove('open', 'mobile-open');
+        if (overlay) overlay.classList.remove('open', 'active');
+        document.body.style.overflow = '';
     }
 });
 </script>

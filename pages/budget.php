@@ -23,15 +23,6 @@ $monthLabel = date('F Y');
 
 /* ── ALL CATEGORIES (expense + income sources) ── */
 $expenseCategories = ['Food','Transport','Utilities','Entertainment','Shopping','Health','Other'];
-$categoryEmojis = [
-    'Food'          => '🍽️',
-    'Transport'     => '🚌',
-    'Utilities'     => '💡',
-    'Entertainment' => '🎬',
-    'Shopping'      => '🛍️',
-    'Health'        => '🏥',
-    'Other'         => '📦',
-];
 
 /* ── FETCH EXISTING BUDGETS ── */
 // Expects a `budgets` table: (budget_id INT PK AI, user_id INT, category VARCHAR, amount DECIMAL, created_at TIMESTAMP)
@@ -555,14 +546,112 @@ body > * { position: relative; z-index: 1; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 20px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255,107,53,.3); }
 
+/* ── MOBILE OVERLAY & DRAWER ── */
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 1040;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+.sidebar-overlay.active,
+.sidebar-overlay.open {
+    display: block;
+    opacity: 1;
+}
+
 /* ── RESPONSIVE ── */
-@media (max-width: 1100px) { .grid-2 { grid-template-columns: 1fr; } .summary-row { grid-template-columns: repeat(2,1fr); } }
-@media (max-width: 900px)  { .budget-row { grid-template-columns: 1fr 1fr; row-gap: 10px; } .bprogress { grid-column: 1/-1; } }
-@media (max-width: 768px)  { .sidebar { display: none; } .main { margin-left: 0; } .content { padding: 20px 16px 40px; } .topbar { padding: 0 16px; } .summary-row { grid-template-columns: 1fr 1fr; } }
-@media (max-width: 480px)  { .summary-row { grid-template-columns: 1fr; } }
+@media (max-width: 1100px) {
+    .grid-2 { grid-template-columns: 1fr; }
+    .summary-row { grid-template-columns: repeat(2,1fr); }
+}
+
+@media (max-width: 900px) {
+    .sidebar {
+        display: flex !important;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        bottom: 0 !important;
+        width: 260px !important;
+        max-width: 82vw !important;
+        height: 100vh !important;
+        z-index: 1050 !important;
+        transform: translateX(-100%) !important;
+        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        box-shadow: none !important;
+    }
+    .sidebar.open,
+    .sidebar.mobile-open {
+        transform: translateX(0) !important;
+        box-shadow: 0 0 50px rgba(0, 0, 0, 0.6) !important;
+    }
+    .sidebar.collapsed {
+        width: 260px !important;
+    }
+    .sidebar.collapsed .brand-text,
+    .sidebar.collapsed .nav-label,
+    .sidebar.collapsed .nav-section-label {
+        opacity: 1 !important;
+        width: auto !important;
+        pointer-events: auto !important;
+        height: auto !important;
+    }
+    .sidebar.collapsed .nav-item {
+        justify-content: flex-start !important;
+        padding: 8px 10px !important;
+    }
+    .sidebar-toggle {
+        display: none !important;
+    }
+    .main {
+        margin-left: 0 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+    .topbar {
+        padding: 0 16px !important;
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 100 !important;
+        background: var(--surface) !important;
+        width: 100% !important;
+    }
+    .budget-row { grid-template-columns: 1fr 1fr; row-gap: 10px; }
+    .bprogress { grid-column: 1/-1; }
+    .content {
+        padding: 16px 14px 40px !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .topbar-date { display: none !important; }
+    .summary-row { grid-template-columns: 1fr 1fr; gap: 10px; }
+}
+
+@media (max-width: 640px) {
+    .topbar-left .breadcrumb { display: none !important; }
+    .page-header { flex-direction: column !important; align-items: stretch !important; gap: 12px !important; }
+    .page-title { font-size: 20px !important; }
+    .stat-card { padding: 12px 14px !important; }
+    .stat-val { font-size: 17px !important; }
+    .card-hd { flex-wrap: wrap; gap: 10px; }
+    .budget-row { grid-template-columns: 1fr; gap: 8px; }
+}
+
+@media (max-width: 480px) {
+    .summary-row { grid-template-columns: 1fr !important; }
+    .topbar-right .btn span { display: none !important; }
+}
 </style>
 </head>
 <body>
+
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
 <div class="layout">
 
@@ -771,20 +860,19 @@ body > * { position: relative; z-index: 1; }
                         $left    = $budget - $s;
                         $color   = $colors[$cat]   ?? '#6366f1';
                         $bg      = $bgColors[$cat]  ?? '#f8fafc';
-                        $emoji   = $categoryEmojis[$cat] ?? '📦';
 
                         if ($budget == 0) {
                             $statusClass = 'status-unset';
                             $statusText  = 'No limit set';
                         } elseif ($s > $budget) {
                             $statusClass = 'status-over';
-                            $statusText  = '⚠ Over by KES ' . number_format($s - $budget);
+                            $statusText  = 'Over by KES ' . number_format($s - $budget);
                         } elseif ($pct >= 80) {
                             $statusClass = 'status-warning';
-                            $statusText  = '⚡ ' . $pct . '% used';
+                            $statusText  = $pct . '% used';
                         } else {
                             $statusClass = 'status-ok';
-                            $statusText  = '✓ KES ' . number_format($left) . ' left';
+                            $statusText  = 'KES ' . number_format($left) . ' left';
                         }
 
                         $barColor = $s > $budget && $budget > 0 ? 'var(--red)'
@@ -793,7 +881,7 @@ body > * { position: relative; z-index: 1; }
                         <div class="budget-row" data-category="<?php echo $cat; ?>">
                             <!-- Category info -->
                             <div class="bcat">
-                                <div class="bcat-icon" style="background:<?php echo $bg; ?>"><?php echo $emoji; ?></div>
+                                <div class="bcat-icon" style="background:<?php echo $bg; ?>;color:<?php echo $color; ?>;font-weight:700;font-size:13px;"><?php echo strtoupper(substr($cat, 0, 1)); ?></div>
                                 <div>
                                     <div class="bcat-name"><?php echo $cat; ?></div>
                                     <div class="bcat-spent">KES <?php echo number_format($s); ?> spent</div>
@@ -871,7 +959,9 @@ body > * { position: relative; z-index: 1; }
                         <div class="legend" id="donutLegend"></div>
                         <?php else: ?>
                         <div class="empty">
-                            <div class="empty-ico">🎯</div>
+                            <div class="empty-ico">
+                                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-3);"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                            </div>
                             <div class="empty-txt">Set budgets on the left<br>to see your allocation chart.</div>
                         </div>
                         <?php endif; ?>
@@ -884,7 +974,9 @@ body > * { position: relative; z-index: 1; }
             <div class="card anim" style="margin-top:20px;border:1px solid rgba(0,212,255,.2);box-shadow:0 0 0 4px rgba(0,212,255,.04);">
                 <div class="card-hd" style="padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:4px;">
                     <div style="display:flex;align-items:center;gap:10px;">
-                        <div style="width:36px;height:36px;background:var(--cyan-dim);border:1px solid rgba(0,212,255,.2);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">⏱</div>
+                        <div style="width:36px;height:36px;background:var(--cyan-dim);color:var(--cyan);border:1px solid rgba(0,212,255,.2);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        </div>
                         <div>
                             <div class="card-title" style="font-size:15px;">Spending Period Limits</div>
                             <div class="card-sub">Cap how much you spend daily, monthly or yearly per category — saved with your budgets</div>
@@ -898,12 +990,11 @@ body > * { position: relative; z-index: 1; }
                 </div>
                 <div id="period-inputs" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;padding-top:10px;">
                 <?php foreach ($expenseCategories as $cat):
-                    $emoji  = $categoryEmojis[$cat] ?? '📦';
                     $bg     = $bgColors[$cat] ?? '#f8fafc';
                     $color  = $colors[$cat]   ?? '#6366f1';
                 ?>
                     <div class="period-row" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px;">
-                        <div style="width:32px;height:32px;background:<?php echo $bg; ?>;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;"><?php echo $emoji; ?></div>
+                        <div style="width:32px;height:32px;background:<?php echo $bg; ?>;color:<?php echo $color; ?>;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;"><?php echo strtoupper(substr($cat, 0, 1)); ?></div>
                         <span class="period-cat-lbl" style="font-size:13px;font-weight:500;min-width:90px;color:var(--text-1);"><?php echo $cat; ?></span>
                         <div class="period-input-group" style="flex:1;">
                             <span class="currency" style="font-size:11px;color:var(--ink-3);">KES</span>
@@ -936,7 +1027,7 @@ body > * { position: relative; z-index: 1; }
                 <?php endforeach; ?>
                 </div>
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.06);">
-                    <p style="font-size:12px;color:var(--text-3);margin:0;">💾 Period limits are saved together with your budgets when you click <strong style="color:var(--text-2);">Save Budgets</strong>.</p>
+                    <p style="font-size:12px;color:var(--text-3);margin:0;">Period limits are saved together with your budgets when you click <strong style="color:var(--text-2);">Save Budgets</strong>.</p>
                     <button class="btn btn-primary" onclick="saveAll()" style="flex-shrink:0;">
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                         Save Budgets
@@ -947,19 +1038,25 @@ body > * { position: relative; z-index: 1; }
             <!-- ══ BUDGET TIPS — below period limits ══ -->
             <div class="card anim" style="margin-top:16px;">
                 <div class="card-hd">
-                    <div class="card-title">💡 Budget Tips</div>
+                    <div class="card-title">Budget Tips</div>
                 </div>
                 <div class="tips">
                     <div class="tip-item">
-                        <div class="tip-icon">📐</div>
+                        <div class="tip-icon">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10L12 12z"/></svg>
+                        </div>
                         <div class="tip-text"><strong>50/30/20 Rule</strong> — Put 50% of income to needs, 30% to wants, and 20% to savings.</div>
                     </div>
                     <div class="tip-item">
-                        <div class="tip-icon">⚡</div>
+                        <div class="tip-icon">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        </div>
                         <div class="tip-text"><strong>80% Warning</strong> — Categories shown in amber have used over 80% of their limit.</div>
                     </div>
                     <div class="tip-item">
-                        <div class="tip-icon">🔄</div>
+                        <div class="tip-icon">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+                        </div>
                         <div class="tip-text"><strong>Monthly Reset</strong> — Budgets reset each month but your limits carry forward automatically.</div>
                     </div>
                 </div>
@@ -1123,20 +1220,42 @@ function showToast(msg, type = 'success') {
 }
 
 /* ── SIDEBAR TOGGLE ── */
-(function() {
+function toggleSidebar() {
     const layout    = document.querySelector('.layout');
-    const sidebar   = document.querySelector('.sidebar');
-    const toggleBtn = document.getElementById('sidebarToggle');
-    const topbarBtn = document.getElementById('topbarMenuBtn');
+    const sidebar   = document.getElementById('sidebar') || document.querySelector('.sidebar');
+    const overlay   = document.getElementById('sidebarOverlay');
+    if (!sidebar) return;
 
-    function toggleSidebar() {
+    if (window.innerWidth <= 900) {
+        const isOpen = sidebar.classList.toggle('open');
+        sidebar.classList.toggle('mobile-open', isOpen);
+        if (overlay) {
+            overlay.classList.toggle('open', isOpen);
+            overlay.classList.toggle('active', isOpen);
+        }
+        document.body.style.overflow = isOpen ? 'hidden' : '';
+    } else {
         const collapsed = sidebar.classList.toggle('collapsed');
-        layout.classList.toggle('sidebar-collapsed', collapsed);
+        if (layout) layout.classList.toggle('sidebar-collapsed', collapsed);
         localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
     }
+}
 
+(function() {
+    const toggleBtn = document.getElementById('sidebarToggle');
+    const topbarBtn = document.getElementById('topbarMenuBtn');
     if (toggleBtn) toggleBtn.addEventListener('click', toggleSidebar);
     if (topbarBtn) topbarBtn.addEventListener('click', toggleSidebar);
+
+    window.addEventListener('resize', function() {
+        if (window.innerWidth > 900) {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            if (sidebar) sidebar.classList.remove('open', 'mobile-open');
+            if (overlay) overlay.classList.remove('open', 'active');
+            document.body.style.overflow = '';
+        }
+    });
 })();
 
 /* ── DONUT CHART ── */

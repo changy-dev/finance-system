@@ -25,16 +25,16 @@ if ($conn->connect_error) {
 
 $conn->set_charset('utf8mb4');
 
-// Auto-initialize password_resets table if not present
-$conn->query("
-    CREATE TABLE IF NOT EXISTS `password_resets` (
-        `id` INT AUTO_INCREMENT PRIMARY KEY,
-        `email` VARCHAR(255) NOT NULL,
-        `token` VARCHAR(64) NOT NULL,
-        `created_at` DATETIME NOT NULL,
-        `expires_at` DATETIME NOT NULL,
-        INDEX (`email`),
-        INDEX (`token`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-");
+if (!$conn->query("
+    CREATE TABLE IF NOT EXISTS `login_attempts` (
+        `email` VARCHAR(100) NOT NULL,
+        `attempt_count` INT UNSIGNED NOT NULL DEFAULT 1,
+        `last_attempt` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `locked_until` DATETIME DEFAULT NULL,
+        PRIMARY KEY (`email`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+")) {
+    error_log("Failed to initialize login_attempts table: " . $conn->error);
+    die("Could not initialize login security. Please check the database configuration.");
+}
 ?>

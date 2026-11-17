@@ -11,9 +11,11 @@ if ($is_logged_in && isset($_GET['auth'])) {
 }
 
 $login_error   = "";
+$login_success = "";
 $reg_error     = "";
 $forgot_error   = "";
-$forgot_success = "";
+$reset_error   = "";
+$reset_email   = "";
 $active_auth_tab = $_GET['auth'] ?? ($_POST['active_tab'] ?? '');
 
 // ── BRUTE FORCE HELPERS ────────────────────────────────────
@@ -25,10 +27,21 @@ function get_login_attempts(mysqli $conn, string $email): array {
     $stmt->bind_param("s", $email);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
     return $row ?: ['attempt_count' => 0, 'locked_until' => null];
 }
 
 function record_failed_attempt(mysqli $conn, string $email): void {
+    // Administrator accounts are strictly exempt from brute-force lockout
+    $chk = $conn->prepare("SELECT role FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1");
+    $chk->bind_param("s", $email);
+    $chk->execute();
+    $u = $chk->get_result()->fetch_assoc();
+    $chk->close();
+    if ($u && ($u['role'] ?? '') === 'admin') {
+        return;
+    }
+
     $stmt = $conn->prepare("
         INSERT INTO login_attempts (email, attempt_count, last_attempt)
         VALUES (?, 1, NOW())
@@ -41,12 +54,14 @@ function record_failed_attempt(mysqli $conn, string $email): void {
     $lock = LOCKOUT_MINUTES;
     $stmt->bind_param("sii", $email, $max, $lock);
     $stmt->execute();
+    $stmt->close();
 }
 
 function clear_login_attempts(mysqli $conn, string $email): void {
-    $stmt = $conn->prepare("DELETE FROM login_attempts WHERE email = ?");
+    $stmt = $conn->prepare("DELETE FROM login_attempts WHERE LOWER(email) = LOWER(?)");
     $stmt->bind_param("s", $email);
     $stmt->execute();
+    $stmt->close();
 }
 
 // ── PROCESS AUTH ACTIONS ──────────────────────────────────
@@ -65,10 +80,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['auth_action'])) {
             $login_error = "Password is required.";
         } else {
             $login_lc  = mb_strtolower($login_input);
+
+            // Pre-check if this account belongs to an administrator
+            $chk_admin = $conn->prepare("SELECT role FROM users WHERE LOWER(email) = ? LIMIT 1");
+            $chk_admin->bind_param("s", $login_lc);
+            $chk_admin->execute();
+            $admin_row = $chk_admin->get_result()->fetch_assoc();
+            $chk_admin->close();
+            $is_admin_account = ($admin_row && ($admin_row['role'] ?? '') === 'admin');
+
             $attempts  = get_login_attempts($conn, $login_lc);
             $is_locked = $attempts['locked_until'] && strtotime($attempts['locked_until']) > time();
 
-            if ($is_locked) {
+            // Administrator accounts are never locked out
+            if (!$is_admin_account && $is_locked) {
                 $mins  = ceil((strtotime($attempts['locked_until']) - time()) / 60);
                 $login_error = "Too many failed attempts. Try again in {$mins} minute(s).";
             } else {
@@ -76,9 +101,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['auth_action'])) {
                 $stmt->bind_param("s", $login_lc);
                 $stmt->execute();
                 $user = $stmt->get_result()->fetch_assoc();
+                $stmt->close();
 
                 if ($user && password_verify($password, $user['password'])) {
-                    if ($user['status'] !== 'active') {
+                    if ($user['status'] !== 'active' && ($user['role'] ?? '') !== 'admin') {
                         $login_error = "Your account has been suspended. Contact support.";
                     } else {
                         $_SESSION['user_id']       = (int)$user['user_id'];
@@ -97,12 +123,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['auth_action'])) {
                         exit();
                     }
                 } else {
-                    record_failed_attempt($conn, $login_lc);
-                    $remaining = MAX_LOGIN_ATTEMPTS - ($attempts['attempt_count'] + 1);
-                    if ($remaining > 0) {
-                        $login_error = "Wrong credentials or password. {$remaining} attempt(s) remaining.";
+                    if ($is_admin_account) {
+                        // Admin accounts are exempt from lockout
+                        $login_error = "Incorrect password for administrator account.";
                     } else {
-                        $login_error = "Account locked for " . LOCKOUT_MINUTES . " minutes due to too many failed attempts.";
+                        record_failed_attempt($conn, $login_lc);
+                        $remaining = MAX_LOGIN_ATTEMPTS - ($attempts['attempt_count'] + 1);
+                        if ($remaining > 0) {
+                            $login_error = "Wrong credentials or password. {$remaining} attempt(s) remaining.";
+                        } else {
+                            $login_error = "Account locked for " . LOCKOUT_MINUTES . " minutes due to too many failed attempts.";
+                        }
                     }
                 }
             }
@@ -176,42 +207,108 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['auth_action'])) {
             $forgot_error = "Please enter your registered email address.";
         } else {
             $input_lc = mb_strtolower($forgot_input);
-            $stmt = $conn->prepare("SELECT user_id, email, full_name, name FROM users WHERE LOWER(email) = ? LIMIT 1");
+            $stmt = $conn->prepare("SELECT user_id, email, full_name, name, role FROM users WHERE LOWER(email) = ? LIMIT 1");
             $stmt->bind_param("s", $input_lc);
             $stmt->execute();
             $found_user = $stmt->get_result()->fetch_assoc();
             $stmt->close();
 
             if ($found_user) {
-                $user_email = $found_user['email'];
-                $token = bin2hex(random_bytes(32));
-
-                // Clean existing tokens for this email
-                $del_stmt = $conn->prepare("DELETE FROM password_resets WHERE LOWER(email) = ?");
-                $del_stmt->bind_param("s", $user_email);
-                $del_stmt->execute();
-                $del_stmt->close();
-
-                // Save new token valid for 1 hour
-                $ins_stmt = $conn->prepare("INSERT INTO password_resets (email, token, created_at, expires_at) VALUES (?, ?, NOW(), DATE_ADD(NOW(), INTERVAL 1 HOUR))");
-                $ins_stmt->bind_param("ss", $user_email, $token);
-
-                if ($ins_stmt->execute()) {
-                    $ins_stmt->close();
-                    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
-                    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-                    $dir = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
-                    $reset_link = $protocol . $host . $dir . "/auth/reset_password.php?token=" . $token;
-
-                    $forgot_success = "Password reset link generated successfully!<br><br><b>Reset Link:</b> <a href='" . htmlspecialchars($reset_link) . "' style='color:var(--accent);font-weight:700;word-break:break-all;'>" . htmlspecialchars($reset_link) . "</a><br><small style='opacity:.85;'>Link is valid for 1 hour.</small>";
-                } else {
-                    $ins_stmt->close();
-                    $forgot_error = "Failed to generate password reset request. Please try again.";
-                }
+                // Email exists: transition to change password popup box
+                $reset_email = $found_user['email'];
+                $active_auth_tab = 'reset';
             } else {
-                // Return clear message
-                $forgot_error = "No account found matching that email address.";
+                // Email does not exist: exact requirement "Invalid credentials"
+                $forgot_error = "Invalid credentials";
             }
+        }
+
+        if (!empty($_POST['ajax']) || (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')) {
+            header('Content-Type: application/json; charset=utf-8');
+            if (!empty($reset_email)) {
+                echo json_encode([
+                    'status'   => 'success',
+                    'email'    => $reset_email,
+                    'new_csrf' => csrf_token()
+                ]);
+            } else {
+                echo json_encode([
+                    'status'   => 'error',
+                    'message'  => $forgot_error ?: 'Invalid credentials',
+                    'new_csrf' => csrf_token()
+                ]);
+            }
+            exit();
+        }
+    } elseif ($auth_action === 'change_password') {
+        $active_auth_tab = 'reset';
+        $reset_email = trim($_POST['email'] ?? '');
+        $new_password = trim($_POST['new_password'] ?? '');
+        $confirm_password = trim($_POST['confirm_password'] ?? '');
+
+        if (empty($reset_email)) {
+            $reset_error = "Invalid credentials";
+            $active_auth_tab = 'forgot';
+        } elseif (empty($new_password)) {
+            $reset_error = "Please enter a new password.";
+        } elseif (strlen($new_password) < 8) {
+            $reset_error = "Password needs at least 8 characters.";
+        } elseif (!preg_match('/[0-9]/', $new_password)) {
+            $reset_error = "Password needs at least one number.";
+        } elseif (!preg_match('/[A-Z]/', $new_password)) {
+            $reset_error = "Password needs at least one uppercase letter.";
+        } elseif (!preg_match('/[a-z]/', $new_password)) {
+            $reset_error = "Password needs at least one lowercase letter.";
+        } elseif ($new_password !== $confirm_password) {
+            $reset_error = "Passwords do not match.";
+        } else {
+            // Verify email exists in DB
+            $email_lc = mb_strtolower($reset_email);
+            $chk = $conn->prepare("SELECT user_id, email, role FROM users WHERE LOWER(email) = ? LIMIT 1");
+            $chk->bind_param("s", $email_lc);
+            $chk->execute();
+            $target_user = $chk->get_result()->fetch_assoc();
+            $chk->close();
+
+            if (!$target_user) {
+                $reset_error = "Invalid credentials";
+                $active_auth_tab = 'forgot';
+            } else {
+                $new_hash = password_hash($new_password, PASSWORD_BCRYPT, ['cost' => 12]);
+                $upd = $conn->prepare("UPDATE users SET password = ? WHERE LOWER(email) = ?");
+                $upd->bind_param("ss", $new_hash, $email_lc);
+                if ($upd->execute()) {
+                    $upd->close();
+
+                    // Clear any lockout records for this email
+                    clear_login_attempts($conn, $email_lc);
+
+                    $login_success = "Password updated successfully. Please sign in with your new password.";
+                    $active_auth_tab = 'login';
+                } else {
+                    $upd->close();
+                    $reset_error = "Failed to update password. Please try again.";
+                }
+            }
+        }
+
+        if (!empty($_POST['ajax']) || (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')) {
+            header('Content-Type: application/json; charset=utf-8');
+            if (!empty($reset_error)) {
+                echo json_encode([
+                    'status'   => 'error',
+                    'message'  => $reset_error,
+                    'new_csrf' => csrf_token()
+                ]);
+            } else {
+                echo json_encode([
+                    'status'   => 'success',
+                    'message'  => $login_success,
+                    'email'    => $reset_email,
+                    'new_csrf' => csrf_token()
+                ]);
+            }
+            exit();
         }
     }
 }
@@ -222,7 +319,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['auth_action'])) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Fintrack — Personal Finance Management & Wealth Tracker</title>
-<meta name="description" content="Take total control of your money with Fintrack. Track transactions, automate budget limits, monitor savings goals, and visualize analytics in real-time.">
+<meta name="description" content="Take total control of your money with Fintrack. Track transactions, automate budget limits, monitor cash flows, and visualize analytics in real-time.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -637,6 +734,8 @@ body > * { position: relative; z-index: 1; }
     justify-content: center;
     padding: 20px;
     opacity: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     transition: opacity .25s ease;
 }
 .auth-overlay.open {
@@ -650,6 +749,9 @@ body > * { position: relative; z-index: 1; }
     border-radius: var(--radius-xl);
     width: 100%;
     max-width: 420px;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     padding: 32px 28px;
     box-shadow: var(--shadow-lg);
     position: relative;
@@ -817,15 +919,25 @@ body > * { position: relative; z-index: 1; }
     .navbar { padding: 0 20px; }
     .hero { padding: 50px 20px; }
     .hero-title { font-size: 38px; }
+    .navbar { padding: 0 16px; }
+    .nav-links { display: none !important; }
+    .hero { padding: 50px 16px; }
+    .hero-title { font-size: clamp(30px, 7vw, 42px); }
     .features-grid { grid-template-columns: repeat(2, 1fr); }
     .preview-grid { grid-template-columns: 1fr; }
     .calc-card { grid-template-columns: 1fr; gap: 20px; padding: 24px; }
+    .calc-card { grid-template-columns: 1fr; gap: 20px; padding: 20px; }
 }
 
 @media (max-width: 600px) {
+    .navbar .btn-ghost { display: none; }
     .features-grid { grid-template-columns: 1fr; }
     .hero-buttons { flex-direction: column; }
     .btn { width: 100%; justify-content: center; }
+    .hero-buttons { flex-direction: column; width: 100%; }
+    .hero-buttons .btn { width: 100%; justify-content: center; }
+    .calc-card { padding: 16px; }
+    .auth-card { padding: 24px 18px; border-radius: var(--radius-lg); }
 }
 </style>
 </head>
@@ -859,7 +971,7 @@ body > * { position: relative; z-index: 1; }
 <!-- HERO -->
 <section class="hero">
     <h1 class="hero-title">Master Your Money with <span>Precision & Intelligence.</span></h1>
-    <p class="hero-sub">Track daily expenses, set budget limits, automate savings goals, and visualize net worth progress in one high-performance dashboard.</p>
+    <p class="hero-sub">Track daily expenses, set category budget limits, monitor cash flows, and visualize financial trends in one high-performance dashboard.</p>
     
     <div class="hero-buttons">
         <?php if ($is_logged_in): ?>
@@ -892,7 +1004,9 @@ body > * { position: relative; z-index: 1; }
                     <div class="tx-list">
                         <div class="tx-item">
                             <div class="tx-left">
-                                <div class="tx-icon">💼</div>
+                                <div class="tx-icon" style="background:#ecfdf5;display:flex;align-items:center;justify-content:center;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="7 17 17 7"/><polyline points="7 7 17 7 17 17"/></svg>
+                                </div>
                                 <div>
                                     <div class="tx-name">Web Consulting</div>
                                     <div class="tx-date">Today</div>
@@ -902,7 +1016,9 @@ body > * { position: relative; z-index: 1; }
                         </div>
                         <div class="tx-item">
                             <div class="tx-left">
-                                <div class="tx-icon" style="background:var(--red-dim);color:var(--red);">☕</div>
+                                <div class="tx-icon" style="background:#fff1f2;display:flex;align-items:center;justify-content:center;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#E11D48" stroke-width="2.5"><polyline points="7 7 17 17"/><polyline points="17 7 17 17 7 17"/></svg>
+                                </div>
                                 <div>
                                     <div class="tx-name">Dining Out</div>
                                     <div class="tx-date">Yesterday</div>
@@ -912,9 +1028,11 @@ body > * { position: relative; z-index: 1; }
                         </div>
                         <div class="tx-item">
                             <div class="tx-left">
-                                <div class="tx-icon" style="background:var(--cyan-dim);color:var(--cyan);">🏠</div>
+                                <div class="tx-icon" style="background:#ecfdf5;display:flex;align-items:center;justify-content:center;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="7 17 17 7"/><polyline points="7 7 17 7 17 17"/></svg>
+                                </div>
                                 <div>
-                                    <div class="tx-name">Savings Goal</div>
+                                    <div class="tx-name">Freelance Consulting</div>
                                     <div class="tx-date">3 days ago</div>
                                 </div>
                             </div>
@@ -953,10 +1071,10 @@ body > * { position: relative; z-index: 1; }
 
         <div class="feature-card">
             <div class="feature-icon">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9c0 4-4 4-4 4H7v5H3V9a6 6 0 0 1 12 0h2z"/><circle cx="21" cy="14" r="3"/></svg>
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
             </div>
-            <div class="feature-h">Savings Milestones</div>
-            <div class="feature-p">Set custom targets for home decor, emergency funds, and vacation plans with easy deposits.</div>
+            <div class="feature-h">Cashflow Tracking</div>
+            <div class="feature-p">Monitor all income inflows and expense outflows with clean category tagging and transaction history.</div>
         </div>
 
         <div class="feature-card" id="security">
@@ -999,7 +1117,7 @@ body > * { position: relative; z-index: 1; }
 </section>
 
 <!-- AUTH MODAL -->
-<?php $modal_open = (!empty($login_error) || !empty($reg_error) || !empty($forgot_error) || !empty($forgot_success) || !empty($_GET['auth'])); ?>
+<?php $modal_open = (!empty($login_error) || !empty($login_success) || !empty($reg_error) || !empty($forgot_error) || !empty($reset_error) || $active_auth_tab === 'reset' || !empty($_GET['auth'])); ?>
 <div class="auth-overlay <?php echo $modal_open ? 'open' : ''; ?>" id="authOverlay" onclick="if(event.target===this) closeAuthModal()">
     <div class="auth-card">
         <button class="auth-close" onclick="closeAuthModal()" aria-label="Close modal">✕</button>
@@ -1013,6 +1131,12 @@ body > * { position: relative; z-index: 1; }
                 <div class="auth-error"><?php echo htmlspecialchars($login_error); ?></div>
             <?php endif; ?>
 
+            <?php if (!empty($login_success)): ?>
+                <div id="loginSuccessBox" class="auth-success" style="background:var(--green-dim);border:1px solid rgba(5,150,105,.25);color:var(--green);padding:12px 14px;border-radius:10px;font-size:13px;margin-bottom:16px;line-height:1.5;">
+                    <?php echo htmlspecialchars($login_success); ?>
+                </div>
+            <?php endif; ?>
+
             <form method="POST" action="index.php" autocomplete="off" novalidate>
                 <?php echo csrf_field(); ?>
                 <input type="hidden" name="auth_action" value="login">
@@ -1020,7 +1144,7 @@ body > * { position: relative; z-index: 1; }
 
                 <div class="auth-field">
                     <label>Email address</label>
-                    <input type="email" name="email" required autocomplete="off" placeholder="name@example.com">
+                    <input type="email" name="email" required autocomplete="off" placeholder="name@example.com" value="<?php echo htmlspecialchars($login_input ?? ''); ?>">
                 </div>
 
                 <div class="auth-field">
@@ -1088,36 +1212,77 @@ body > * { position: relative; z-index: 1; }
             </div>
         </div>
 
-        <!-- FORGOT PASSWORD VIEW -->
+        <!-- FORGOT PASSWORD VIEW (Step 1: Verify Email) -->
         <div class="auth-view <?php echo ($active_auth_tab === 'forgot') ? 'active' : ''; ?>" id="viewForgot">
-            <h2 style="font-family:var(--font-head);font-size:22px;font-weight:700;margin-bottom:4px;color:var(--text-1);">Reset Password</h2>
-            <p style="font-size:13px;color:var(--text-2);margin-bottom:20px;">Enter your registered email address to receive a password reset link.</p>
+            <h2 style="font-family:var(--font-head);font-size:22px;font-weight:700;margin-bottom:4px;color:var(--text-1);">Forgot Password</h2>
+            <p style="font-size:13px;color:var(--text-2);margin-bottom:20px;">Enter your registered email address to verify your account.</p>
 
-            <?php if (!empty($forgot_error)): ?>
-                <div class="auth-error"><?php echo htmlspecialchars($forgot_error); ?></div>
-            <?php endif; ?>
+            <div class="auth-error" id="forgotErrorBox" style="<?php echo empty($forgot_error) ? 'display:none;' : ''; ?>">
+                <?php echo htmlspecialchars($forgot_error ?? ''); ?>
+            </div>
 
-            <?php if (!empty($forgot_success)): ?>
-                <div class="auth-success" style="background:var(--green-dim);border:1px solid rgba(5,150,105,.25);color:var(--green);padding:12px 14px;border-radius:10px;font-size:13px;margin-bottom:16px;line-height:1.5;">
-                    <?php echo $forgot_success; ?>
-                </div>
-            <?php endif; ?>
-
-            <form method="POST" action="index.php" autocomplete="off" novalidate>
+            <form id="forgotForm" method="POST" action="index.php" autocomplete="off" novalidate>
                 <?php echo csrf_field(); ?>
                 <input type="hidden" name="auth_action" value="forgot_password">
                 <input type="hidden" name="active_tab" value="forgot">
 
                 <div class="auth-field">
                     <label>Email address</label>
-                    <input type="email" name="email" required autocomplete="off" placeholder="name@example.com">
+                    <input type="email" id="forgotEmailInput" name="email" required autocomplete="off" placeholder="name@example.com" value="<?php echo htmlspecialchars($forgot_input ?? ''); ?>">
                 </div>
 
-                <button type="submit" class="auth-submit-btn">Send Reset Link →</button>
+                <button type="submit" id="forgotSubmitBtn" class="auth-submit-btn">Verify Email →</button>
             </form>
 
             <div class="auth-toggle-msg">
                 Remembered your password? <a onclick="switchAuthTab('login')">Sign In here</a>
+            </div>
+        </div>
+
+        <!-- CHANGE PASSWORD VIEW (Step 2: Set New Password) -->
+        <div class="auth-view <?php echo ($active_auth_tab === 'reset') ? 'active' : ''; ?>" id="viewReset">
+            <h2 style="font-family:var(--font-head);font-size:22px;font-weight:700;margin-bottom:4px;color:var(--text-1);">Change Password</h2>
+            <p style="font-size:13px;color:var(--text-2);margin-bottom:20px;">
+                Enter a new password for <strong id="resetEmailDisplay" style="color:var(--text-1);"><?php echo htmlspecialchars($reset_email ?? ''); ?></strong>
+            </p>
+
+            <div class="auth-error" id="resetErrorBox" style="<?php echo empty($reset_error) ? 'display:none;' : ''; ?>">
+                <?php echo htmlspecialchars($reset_error ?? ''); ?>
+            </div>
+
+            <form id="resetForm" method="POST" action="index.php" autocomplete="off" novalidate>
+                <?php echo csrf_field(); ?>
+                <input type="hidden" name="auth_action" value="change_password">
+                <input type="hidden" name="active_tab" value="reset">
+                <input type="hidden" name="email" id="resetEmailInput" value="<?php echo htmlspecialchars($reset_email ?? ''); ?>">
+
+                <div class="auth-field">
+                    <label>New Password</label>
+                    <div class="pwd-wrap">
+                        <input type="password" id="resetNewPassword" name="new_password" required autocomplete="new-password" placeholder="At least 8 characters" oninput="checkResetStrength(this.value)">
+                        <button type="button" class="pwd-toggle-btn" onclick="togglePasswordVisibility('resetNewPassword', this)" title="Show/Hide Password" aria-label="Toggle password visibility">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                        </button>
+                    </div>
+                    <div class="strength-bar"><div class="strength-fill" id="resetStrengthFill"></div></div>
+                    <div class="strength-lbl" id="resetStrengthLbl">Enter a new password</div>
+                </div>
+
+                <div class="auth-field">
+                    <label>Confirm New Password</label>
+                    <div class="pwd-wrap">
+                        <input type="password" id="resetConfirmPassword" name="confirm_password" required autocomplete="new-password" placeholder="Re-type your password">
+                        <button type="button" class="pwd-toggle-btn" onclick="togglePasswordVisibility('resetConfirmPassword', this)" title="Show/Hide Password" aria-label="Toggle password visibility">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" id="resetSubmitBtn" class="auth-submit-btn">Change Password →</button>
+            </form>
+
+            <div class="auth-toggle-msg">
+                Changed your mind? <a onclick="switchAuthTab('login')">Sign In here</a>
             </div>
         </div>
     </div>
@@ -1195,9 +1360,11 @@ function switchAuthTab(tab) {
     const viewLogin = document.getElementById('viewLogin');
     const viewRegister = document.getElementById('viewRegister');
     const viewForgot = document.getElementById('viewForgot');
+    const viewReset = document.getElementById('viewReset');
     if (viewLogin) viewLogin.classList.toggle('active', tab === 'login');
     if (viewRegister) viewRegister.classList.toggle('active', tab === 'register');
     if (viewForgot) viewForgot.classList.toggle('active', tab === 'forgot');
+    if (viewReset) viewReset.classList.toggle('active', tab === 'reset');
 }
 
 function checkAuthStrength(val) {
@@ -1216,6 +1383,23 @@ function checkAuthStrength(val) {
     label.style.color = colors[score - 1] || 'var(--text-3)';
 }
 
+function checkResetStrength(val) {
+    let score = 0;
+    if (val.length >= 8) score++;
+    if (/[A-Z]/.test(val)) score++;
+    if (/[0-9]/.test(val)) score++;
+    if (/[^A-Za-z0-9]/.test(val)) score++;
+    const fill = document.getElementById('resetStrengthFill');
+    const label = document.getElementById('resetStrengthLbl');
+    if (!fill || !label) return;
+    const colors = ['#E11D48','#D97706','#4F46E5','#059669'];
+    const labels = ['Weak','Fair','Good','Strong'];
+    fill.style.width = (score * 25) + '%';
+    fill.style.background = colors[score - 1] || '#E11D48';
+    label.textContent = val.length ? (labels[score - 1] || 'Weak') : 'Enter a new password';
+    label.style.color = colors[score - 1] || 'var(--text-3)';
+}
+
 function togglePasswordVisibility(inputId, btn) {
     const input = document.getElementById(inputId);
     if (!input) return;
@@ -1226,6 +1410,171 @@ function togglePasswordVisibility(inputId, btn) {
     const eyeClosed = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858-5.908A8.962 8.962 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21M3 3l18 18"/></svg>`;
 
     btn.innerHTML = isPassword ? eyeClosed : eyeOpen;
+}
+
+// Handle Forgot Password submission
+const forgotForm = document.getElementById('forgotForm');
+if (forgotForm) {
+    forgotForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const emailInput = document.getElementById('forgotEmailInput');
+        const errBox = document.getElementById('forgotErrorBox');
+        if (errBox) errBox.style.display = 'none';
+
+        const email = emailInput ? emailInput.value.trim() : '';
+        if (!email) {
+            if (errBox) {
+                errBox.textContent = 'Please enter your registered email address.';
+                errBox.style.display = 'block';
+            }
+            return;
+        }
+
+        const submitBtn = document.getElementById('forgotSubmitBtn');
+        const origText = submitBtn ? submitBtn.textContent : '';
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Checking...';
+        }
+
+        const formData = new FormData(forgotForm);
+        formData.append('ajax', '1');
+
+        fetch('index.php', {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = origText;
+            }
+            if (data.new_csrf) {
+                document.querySelectorAll('input[name="csrf_token"]').forEach(el => el.value = data.new_csrf);
+            }
+            if (data.status === 'success') {
+                const resetInput = document.getElementById('resetEmailInput');
+                const resetDisplay = document.getElementById('resetEmailDisplay');
+                if (resetInput) resetInput.value = data.email;
+                if (resetDisplay) resetDisplay.textContent = data.email;
+                const resetErr = document.getElementById('resetErrorBox');
+                if (resetErr) resetErr.style.display = 'none';
+                switchAuthTab('reset');
+            } else {
+                if (errBox) {
+                    errBox.textContent = data.message || 'Invalid credentials';
+                    errBox.style.display = 'block';
+                }
+            }
+        })
+        .catch(err => {
+            forgotForm.submit();
+        });
+    });
+}
+
+// Handle Reset Password submission
+const resetForm = document.getElementById('resetForm');
+if (resetForm) {
+    resetForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const errBox = document.getElementById('resetErrorBox');
+        if (errBox) errBox.style.display = 'none';
+
+        const newPwd = document.getElementById('resetNewPassword').value.trim();
+        const confirmPwd = document.getElementById('resetConfirmPassword').value.trim();
+
+        if (newPwd.length < 8) {
+            if (errBox) {
+                errBox.textContent = "Password needs at least 8 characters.";
+                errBox.style.display = 'block';
+            }
+            return;
+        }
+        if (!/[0-9]/.test(newPwd)) {
+            if (errBox) {
+                errBox.textContent = "Password needs at least one number.";
+                errBox.style.display = 'block';
+            }
+            return;
+        }
+        if (!/[A-Z]/.test(newPwd)) {
+            if (errBox) {
+                errBox.textContent = "Password needs at least one uppercase letter.";
+                errBox.style.display = 'block';
+            }
+            return;
+        }
+        if (!/[a-z]/.test(newPwd)) {
+            if (errBox) {
+                errBox.textContent = "Password needs at least one lowercase letter.";
+                errBox.style.display = 'block';
+            }
+            return;
+        }
+        if (newPwd !== confirmPwd) {
+            if (errBox) {
+                errBox.textContent = "Passwords do not match.";
+                errBox.style.display = 'block';
+            }
+            return;
+        }
+
+        const submitBtn = document.getElementById('resetSubmitBtn');
+        const origText = submitBtn ? submitBtn.textContent : '';
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Updating...';
+        }
+
+        const formData = new FormData(resetForm);
+        formData.append('ajax', '1');
+
+        fetch('index.php', {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = origText;
+            }
+            if (data.new_csrf) {
+                document.querySelectorAll('input[name="csrf_token"]').forEach(el => el.value = data.new_csrf);
+            }
+            if (data.status === 'success') {
+                let loginSuccess = document.getElementById('loginSuccessBox');
+                if (!loginSuccess) {
+                    loginSuccess = document.createElement('div');
+                    loginSuccess.id = 'loginSuccessBox';
+                    loginSuccess.className = 'auth-success';
+                    loginSuccess.style.cssText = 'background:var(--green-dim);border:1px solid rgba(5,150,105,.25);color:var(--green);padding:12px 14px;border-radius:10px;font-size:13px;margin-bottom:16px;line-height:1.5;';
+                    const loginForm = document.querySelector('#viewLogin form');
+                    if (loginForm) loginForm.parentNode.insertBefore(loginSuccess, loginForm);
+                }
+                loginSuccess.textContent = data.message || "Password updated successfully. Please sign in with your new password.";
+                loginSuccess.style.display = 'block';
+
+                const loginEmailInput = document.querySelector('#viewLogin input[name="email"]');
+                if (loginEmailInput && data.email) {
+                    loginEmailInput.value = data.email;
+                }
+                switchAuthTab('login');
+            } else {
+                if (errBox) {
+                    errBox.textContent = data.message || "Failed to update password.";
+                    errBox.style.display = 'block';
+                }
+            }
+        })
+        .catch(err => {
+            resetForm.submit();
+        });
+    });
 }
 </script>
 </body>

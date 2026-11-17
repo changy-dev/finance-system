@@ -314,9 +314,15 @@ $all_users = $users_stmt ? $users_stmt->fetch_all(MYSQLI_ASSOC) : [];
 @media (max-width: 800px) {
     .stats-grid { grid-template-columns: 1fr; }
 }
+@media (max-width: 640px) {
+    .page-header > div:last-child { width: 100%; }
+    .search-box { width: 100%; }
+}
 </style>
 </head>
 <body>
+
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
 <div class="layout">
 
@@ -380,7 +386,10 @@ $all_users = $users_stmt ? $users_stmt->fetch_all(MYSQLI_ASSOC) : [];
 
         <!-- TOPBAR -->
         <div class="topbar">
-            <div class="topbar-left">
+            <div class="topbar-left" style="display:flex;align-items:center;gap:10px;">
+                <button class="topbar-menu-btn" onclick="toggleSidebar()" aria-label="Toggle navigation">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                </button>
                 <div class="breadcrumbs">
                     <a href="admin_dashboard.php" class="breadcrumb-item">Dashboard</a>
                     <span class="breadcrumb-sep">/</span>
@@ -388,7 +397,7 @@ $all_users = $users_stmt ? $users_stmt->fetch_all(MYSQLI_ASSOC) : [];
                 </div>
             </div>
             <div class="topbar-right">
-                <a href="admin_dashboard.php" class="btn btn-ghost">← Back to Dashboard</a>
+                <a href="admin_dashboard.php" class="btn btn-ghost"><span>← Back to Dashboard</span></a>
             </div>
         </div>
 
@@ -513,7 +522,7 @@ $all_users = $users_stmt ? $users_stmt->fetch_all(MYSQLI_ASSOC) : [];
                                                 class="btn-action btn-action-danger" 
                                                 onclick="promptDelete(<?php echo $uid; ?>, '<?php echo htmlspecialchars(addslashes($displayName)); ?>')" 
                                                 title="Permanently delete user and records">
-                                                🗑 Delete
+                                                Delete
                                             </button>
                                         </div>
                                     <?php endif; ?>
@@ -700,6 +709,37 @@ function updateTotalCounts() {
     if (disp) disp.textContent = 'Showing ' + rows + ' users';
     updateActiveCount();
 }
+
+function toggleSidebar() {
+    const layout  = document.querySelector('.layout');
+    const sidebar = document.getElementById('sidebar') || document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (!sidebar) return;
+
+    if (window.innerWidth <= 900) {
+        const isOpen = sidebar.classList.toggle('open');
+        sidebar.classList.toggle('mobile-open', isOpen);
+        if (overlay) {
+            overlay.classList.toggle('open', isOpen);
+            overlay.classList.toggle('active', isOpen);
+        }
+        document.body.style.overflow = isOpen ? 'hidden' : '';
+    } else {
+        const collapsed = sidebar.classList.toggle('collapsed');
+        if (layout) layout.classList.toggle('sidebar-collapsed', collapsed);
+        localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
+    }
+}
+
+window.addEventListener('resize', function() {
+    if (window.innerWidth > 900) {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        if (sidebar) sidebar.classList.remove('open', 'mobile-open');
+        if (overlay) overlay.classList.remove('open', 'active');
+        document.body.style.overflow = '';
+    }
+});
 </script>
 
 </body>
