@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once __DIR__ . '/../core/db.php';
+require_once __DIR__ . '/../core/csrf.php';
 
 // Enforce admin-only access
 if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
@@ -82,6 +83,23 @@ if ($cat_q) {
         $ci++;
     }
 }
+
+/* ── SOFT-DELETED AUDIT RECOVERY ── */
+$deleted_txs = [];
+$del_q = $conn->query("
+    SELECT t.*, u.full_name, u.name, u.email
+    FROM transactions t
+    JOIN users u ON u.user_id = t.user_id
+    WHERE t.is_deleted_by_user = 1
+    ORDER BY t.transaction_id DESC
+    LIMIT 20
+");
+if ($del_q) {
+    while ($dr = $del_q->fetch_assoc()) {
+        $deleted_txs[] = $dr;
+    }
+}
+$deleted_count = count($deleted_txs);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -284,6 +302,82 @@ if ($cat_q) {
                         <?php endforeach; ?>
                     </div>
                 </div>
+            </div>
+
+            <!-- AUDIT RECOVERY / SOFT-DELETED TRANSACTIONS -->
+            <div class="card" style="margin-top:20px;">
+                <div class="card-hd" style="display:flex;justify-content:space-between;align-items:center;">
+                    <div>
+                        <div class="card-title" style="display:flex;align-items:center;gap:8px;">
+                            <span>Audit Trail: Soft-Deleted Transactions</span>
+                            <?php if ($deleted_count > 0): ?>
+                                <span class="badge" style="background:rgba(239,68,68,0.15);color:#EF4444;font-size:11px;padding:2px 8px;border-radius:99px;font-weight:700;">
+                                    <?= $deleted_count ?> Pending Recovery
+                                </span>
+                            <?php endif; ?>
+                        </div>
+                        <div class="card-sub">Transactions deleted by standard users can be audited and restored back to active ledgers.</div>
+                    </div>
+                </div>
+
+                <?php if (isset($_GET['msg']) && $_GET['msg'] === 'restored'): ?>
+                    <div style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);color:#10B981;padding:10px 14px;border-radius:8px;font-size:13px;margin:14px 20px 0;">
+                        Transaction successfully restored to the user's active ledger!
+                    </div>
+                <?php endif; ?>
+
+                <?php if ($deleted_count === 0): ?>
+                    <div style="padding:32px 20px;text-align:center;color:var(--text-3);font-size:13px;">
+                        <svg width="36" height="36" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin:0 auto 8px;opacity:0.4;display:block;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        No soft-deleted transactions in the audit queue. All user transaction records are currently active.
+                    </div>
+                <?php else: ?>
+                    <div class="table-wrap" style="overflow-x:auto;padding:12px 20px 20px;">
+                        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                            <thead>
+                                <tr style="border-bottom:1px solid var(--border);text-align:left;color:var(--text-3);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">
+                                    <th style="padding:10px 8px;">ID</th>
+                                    <th style="padding:10px 8px;">User</th>
+                                    <th style="padding:10px 8px;">Type</th>
+                                    <th style="padding:10px 8px;">Category</th>
+                                    <th style="padding:10px 8px;">Amount</th>
+                                    <th style="padding:10px 8px;">Date</th>
+                                    <th style="padding:10px 8px;text-align:right;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($deleted_txs as $dtx): ?>
+                                    <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
+                                        <td style="padding:12px 8px;font-family:var(--font-mono);color:var(--text-3);">#<?= $dtx['transaction_id'] ?></td>
+                                        <td style="padding:12px 8px;">
+                                            <div style="font-weight:600;color:var(--text-1);"><?= htmlspecialchars($dtx['full_name'] ?: $dtx['name']) ?></div>
+                                            <div style="font-size:11px;color:var(--text-3);"><?= htmlspecialchars($dtx['email']) ?></div>
+                                        </td>
+                                        <td style="padding:12px 8px;">
+                                            <span class="pill-type <?= $dtx['type'] === 'income' ? 'pill-income' : 'pill-expense' ?>">
+                                                <?= strtoupper($dtx['type']) ?>
+                                            </span>
+                                        </td>
+                                        <td style="padding:12px 8px;color:var(--text-2);"><?= htmlspecialchars($dtx['category']) ?></td>
+                                        <td style="padding:12px 8px;font-weight:700;font-family:var(--font-mono);color:var(--text-1);">
+                                            KES <?= number_format($dtx['amount'], 2) ?>
+                                        </td>
+                                        <td style="padding:12px 8px;color:var(--text-3);"><?= htmlspecialchars($dtx['date'] ?: substr($dtx['created_at'], 0, 10)) ?></td>
+                                        <td style="padding:12px 8px;text-align:right;">
+                                            <form method="POST" action="../actions/restore_transaction.php" style="display:inline;" onsubmit="return confirm('Restore this transaction back to the user\'s active ledger?');">
+                                                <?= csrf_field(); ?>
+                                                <input type="hidden" name="id" value="<?= $dtx['transaction_id'] ?>">
+                                                <button type="submit" class="btn btn-sm" style="background:rgba(16,185,129,0.15);color:#10B981;border:1px solid rgba(16,185,129,0.3);padding:6px 12px;font-size:11.5px;font-weight:600;border-radius:6px;cursor:pointer;">
+                                                    ↻ Restore to Ledger
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php endif; ?>
             </div>
 
         </div><!-- /content -->
