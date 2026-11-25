@@ -322,7 +322,7 @@ body > * { position: relative; z-index: 1; }
 }
 .btn svg { width: 14px; height: 14px; flex-shrink: 0; }
 .btn-primary {
-    background: linear-gradient(135deg, #ff35cd, #da174e);
+    background: linear-gradient(135deg, #ff35cd, #da174eff);
     color: #fff;
     box-shadow: 0 4px 16px rgba(255,107,53,.3);
 }
@@ -342,7 +342,7 @@ body > * { position: relative; z-index: 1; }
     font-size: 24px; font-weight: 700;
     font-family: var(--font-head);
     letter-spacing: -.4px; line-height: 1.2;
-    background: linear-gradient(90deg, #0F0F28 40%, #FF6B35);
+    background: linear-gradient(90deg, #0F0F28 40%, #d31a33ff);
     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
 }
 .page-sub { font-size: 12.5px; color: var(--text-2); margin-top: 4px; }
@@ -825,6 +825,7 @@ body > * { position: relative; z-index: 1; }
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                     Add Transaction
                 </button>
+                
             </div>
         </div>
 
