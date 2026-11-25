@@ -66,7 +66,26 @@ function clear_login_attempts(mysqli $conn, string $email): void {
 
 // ── PROCESS AUTH ACTIONS ──────────────────────────────────
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['auth_action'])) {
-    csrf_verify();
+    $is_ajax = (!empty($_POST['ajax']) || (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest'));
+
+    // Validate CSRF
+    $token = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (!hash_equals(csrf_token(), $token)) {
+        if ($is_ajax) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'status'   => 'error',
+                'message'  => 'Security token mismatch. Please try again.',
+                'new_csrf' => csrf_token()
+            ]);
+            exit();
+        }
+        http_response_code(403);
+        die('CSRF token mismatch. Please refresh and try again.');
+    }
+    // Regenerate token after successful verification
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+
     $auth_action = $_POST['auth_action'];
 
     if ($auth_action === 'login') {
@@ -240,7 +259,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['auth_action'])) {
             }
             exit();
         }
-    } elseif ($auth_action === 'change_password') {
+    } elseif ($auth_action === 'change_password' || $auth_action === 'reset_password') {
         $active_auth_tab = 'reset';
         $reset_email = trim($_POST['email'] ?? '');
         $new_password = trim($_POST['new_password'] ?? '');
@@ -2012,6 +2031,9 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(res => res.json())
             .then(data => {
+                if (data.new_csrf) {
+                    document.querySelectorAll('input[name="csrf_token"]').forEach(el => el.value = data.new_csrf);
+                }
                 if (data.status === 'success') {
                     switchAuthTab('reset');
                     const disp = document.getElementById('resetEmailDisplay');
@@ -2054,6 +2076,9 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(res => res.json())
             .then(data => {
+                if (data.new_csrf) {
+                    document.querySelectorAll('input[name="csrf_token"]').forEach(el => el.value = data.new_csrf);
+                }
                 if (data.status === 'success') {
                     switchAuthTab('login');
                     const succ = document.getElementById('loginSuccessBox');

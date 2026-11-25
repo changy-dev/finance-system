@@ -76,6 +76,11 @@ if ($created_at > date('Y-m-d')) {
     exit;
 }
 
+// Attach time so created_at preserves/has real timestamp instead of 00:00:00
+$full_created_at = ($created_at === date('Y-m-d'))
+    ? date('Y-m-d H:i:s')
+    : $created_at . ' ' . date('H:i:s');
+
 // Also update the `date` column to fix 0000-00-00
 $stmt = $conn->prepare(
     "UPDATE transactions
@@ -88,7 +93,7 @@ if (!$stmt) {
     exit;
 }
 
-$stmt->bind_param('ssdsssii', $type, $category, $amount, $description, $created_at, $created_at, $id, $user_id);
+$stmt->bind_param('ssdsssii', $type, $category, $amount, $description, $full_created_at, $created_at, $id, $user_id);
 
 $csrf_token = $_SESSION['csrf_token'] ?? '';
 if ($stmt->execute()) {

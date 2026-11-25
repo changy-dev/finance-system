@@ -782,10 +782,7 @@ body > * { position: relative; z-index: 1; }
                 <span class="nav-label">Reports</span>
             </a>
             <div class="nav-section-label" style="margin-top:16px;">Account</div>
-            <a href="/finance_system/pages/settings.php" class="nav-item" title="Settings">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                <span class="nav-label">Settings</span>
-            </a>
+
             <a href="../auth/logout.php" class="nav-item" title="Logout">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                 <span class="nav-label">Logout</span>
@@ -849,7 +846,7 @@ body > * { position: relative; z-index: 1; }
                         </div>
                     </div>
                     <div class="stat-val">KES <?php echo number_format($totalExpense); ?></div>
-                    <div class="stat-meta"><span class="pill pill-up">↑ 12.5%</span> vs last month</div>
+                    <div class="stat-meta"><span class="pill pill-neutral">All time</span></div>
                 </div>
 
                 <div class="stat anim anim-d2">
@@ -889,7 +886,7 @@ body > * { position: relative; z-index: 1; }
                         </div>
                     </div>
                     <div class="stat-val">KES <?php echo number_format($monthlyAvg); ?></div>
-                    <div class="stat-meta"><span class="pill pill-down">↓ 5%</span> optimized</div>
+                    <div class="stat-meta"><span class="pill pill-neutral">Monthly pace</span></div>
                 </div>
             </div>
 
@@ -1036,10 +1033,7 @@ body > * { position: relative; z-index: 1; }
                         <div class="insight-item">
                             <div class="insight-label">Active Categories</div>
                             <div class="insight-val"><?php echo count($catLabels); ?></div>
-                            <div class="insight-sub">of 7 available</div>
-                            <div class="progress-bar">
-                                <div class="progress-fill" style="width:<?php echo round(count($catLabels) / 7 * 100); ?>%; background:var(--green)"></div>
-                            </div>
+                            <div class="insight-sub">with recorded spending</div>
                         </div>
 
                         <div class="insight-item">
@@ -1090,37 +1084,13 @@ body > * { position: relative; z-index: 1; }
                     <label id="categoryLabel">Category</label>
                     <select name="category" id="categorySelect" required>
                         <option value="">Choose…</option>
-                        <optgroup label=" Food &amp; Dining">
-                            <option value="Groceries"> Groceries</option>
-                            <option value="Household Supplies"> Household Supplies</option>
-                            <option value="Eating Out"> Eating Out</option>
-                        </optgroup>
-                        <optgroup label=" Transport &amp; Auto">
-                            <option value="Fuel &amp; Charging"> Fuel &amp; Charging</option>
-                            <option value="Vehicle Maintenance"> Vehicle Maintenance</option>
-                            <option value="Commuting"> Commuting</option>
-                        </optgroup>
-                        <optgroup label=" Utilities &amp; Home">
-                            <option value="Utilities"> Utilities</option>
-                            <option value="Home Decor"> Home Decor</option>
-                            <option value="Maintenance &amp; DIY"> Maintenance &amp; DIY</option>
-                            <option value="Kitchenware"> Kitchenware</option>
-                        </optgroup>
-                        <optgroup label=" Health &amp; Wellness">
-                            <option value="Health &amp; Pharmacy"> Health &amp; Pharmacy</option>
-                            <option value="Personal Grooming"> Personal Grooming</option>
-                        </optgroup>
-                        <optgroup label=" Shopping &amp; Lifestyle">
-                            <option value="Clothing &amp; Accessories"> Clothing &amp; Accessories</option>
-                            <option value="Electronics &amp; Tech"> Electronics &amp; Tech</option>
-                            <option value="Entertainment"> Entertainment</option>
-                        </optgroup>
-                        <optgroup label=" Miscellaneous">
-                            <option value="Gifts &amp; Celebrations"> Gifts &amp; Celebrations</option>
-                            <option value="Pet Supplies"> Pet Supplies</option>
-                            <option value="Impulse Buys"> Impulse Buys</option>
-                            <option value="Other"> Other</option>
-                        </optgroup>
+                        <option value="Food">Food</option>
+                        <option value="Transport">Transport</option>
+                        <option value="Utilities">Utilities</option>
+                        <option value="Entertainment">Entertainment</option>
+                        <option value="Shopping">Shopping</option>
+                        <option value="Health">Health</option>
+                        <option value="Other">Other</option>
                     </select>
                 </div>
 
@@ -1166,75 +1136,40 @@ document.getElementById('modal').addEventListener('click', function(e) {
 
 /* CATEGORY OPTIONS */
 const expenseCategories = [
-    // Food & Dining
-    { group: 'Food & Dining',        value: 'Groceries',               label: ' Groceries'               },
-    { group: 'Food & Dining',        value: 'Household Supplies',       label: ' Household Supplies'       },
-    { group: 'Food & Dining',        value: 'Eating Out',               label: ' Eating Out'               },
-    // Transport
-    { group: 'Transport & Auto',      value: 'Fuel & Charging',          label: ' Fuel & Charging'          },
-    { group: 'Transport & Auto',      value: 'Vehicle Maintenance',      label: ' Vehicle Maintenance'      },
-    { group: 'Transport & Auto',      value: 'Commuting',                label: ' Commuting'                },
-    // Utilities & Home
-    { group: 'Utilities & Home',      value: 'Utilities',                label: ' Utilities'                },
-    { group: 'Utilities & Home',      value: 'Home Decor',               label: ' Home Decor'              },
-    { group: 'Utilities & Home',      value: 'Maintenance & DIY',        label: ' Maintenance & DIY'        },
-    { group: 'Utilities & Home',      value: 'Kitchenware',              label: ' Kitchenware'              },
-    // Health
-    { group: 'Health & Wellness',     value: 'Health & Pharmacy',        label: ' Health & Pharmacy'        },
-    { group: 'Health & Wellness',     value: 'Personal Grooming',        label: ' Personal Grooming'        },
-    // Shopping
-    { group: 'Shopping & Lifestyle', value: 'Clothing & Accessories',   label: ' Clothing & Accessories'   },
-    { group: 'Shopping & Lifestyle', value: 'Electronics & Tech',       label: ' Electronics & Tech'       },
-    { group: 'Shopping & Lifestyle', value: 'Entertainment',            label: ' Entertainment'            },
-    // Misc
-    { group: 'Miscellaneous',         value: 'Gifts & Celebrations',     label: ' Gifts & Celebrations'     },
-    { group: 'Miscellaneous',         value: 'Pet Supplies',             label: ' Pet Supplies'             },
-    { group: 'Miscellaneous',         value: 'Impulse Buys',             label: ' Impulse Buys'             },
-    { group: 'Miscellaneous',         value: 'Other',                    label: ' Other'                    },
+    { value: 'Food',          label: 'Food' },
+    { value: 'Transport',     label: 'Transport' },
+    { value: 'Utilities',     label: 'Utilities' },
+    { value: 'Entertainment', label: 'Entertainment' },
+    { value: 'Shopping',      label: 'Shopping' },
+    { value: 'Health',        label: 'Health' },
+    { value: 'Other',         label: 'Other' },
 ];
 
 const incomeCategories = [
-    { value: 'Salary',        label: ' Salary'           },
-    { value: 'Business',      label: ' Business'         },
-    { value: 'Investments',   label: ' Investments'      },
-    { value: 'Shares',        label: ' Shares/Dividends' },
-    { value: 'Freelance',     label: ' Freelance'        },
-    { value: 'Family',        label: ' Family & Friends' },
-    { value: 'Rental',        label: ' Rental Income'    },
-    { value: 'Gift',          label: ' Gift'             },
-    { value: 'Other Income',  label: ' Other Income'     },
+    { value: 'Salary',        label: 'Salary' },
+    { value: 'Business',      label: 'Business' },
+    { value: 'Investments',   label: 'Investments' },
+    { value: 'Shares',        label: 'Shares/Dividends' },
+    { value: 'Freelance',     label: 'Freelance' },
+    { value: 'Family',        label: 'Family & Friends' },
+    { value: 'Rental',        label: 'Rental Income' },
+    { value: 'Gift',          label: 'Gift' },
+    { value: 'Other Income',  label: 'Other Income' },
 ];
 
 function populateCategories(type) {
-    const sel  = document.getElementById('categorySelect');
-    const lbl  = document.getElementById('categoryLabel');
+    const sel = document.getElementById('categorySelect');
+    const lbl = document.getElementById('categoryLabel');
     lbl.textContent = type === 'income' ? 'Income Source' : 'Category';
     sel.innerHTML = '<option value="">Choose…</option>';
 
-    if (type === 'income') {
-        incomeCategories.forEach(opt => {
-            const o = document.createElement('option');
-            o.value = opt.value; o.textContent = opt.label;
-            sel.appendChild(o);
-        });
-    } else {
-        // Build optgroups for expense categories
-        const groups = {};
-        expenseCategories.forEach(opt => {
-            if (!groups[opt.group]) groups[opt.group] = [];
-            groups[opt.group].push(opt);
-        });
-        Object.entries(groups).forEach(([groupName, opts]) => {
-            const og = document.createElement('optgroup');
-            og.label = groupName;
-            opts.forEach(opt => {
-                const o = document.createElement('option');
-                o.value = opt.value; o.textContent = opt.label;
-                og.appendChild(o);
-            });
-            sel.appendChild(og);
-        });
-    }
+    const cats = type === 'income' ? incomeCategories : expenseCategories;
+    cats.forEach(opt => {
+        const o = document.createElement('option');
+        o.value = opt.value;
+        o.textContent = opt.label;
+        sel.appendChild(o);
+    });
 }
 
 /* TYPE TOGGLE */

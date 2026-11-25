@@ -65,6 +65,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         csrf_json_exit(['success' => false, 'message' => 'Date cannot be in the future']);
     }
 
+    // Attach current time so created_at has the real timestamp instead of 00:00:00
+    $full_created_at = ($created_at === date('Y-m-d'))
+        ? date('Y-m-d H:i:s')
+        : $created_at . ' ' . date('H:i:s');
+
     // Do NOT htmlspecialchars here — the DB should store raw text.
     // Output escaping happens at render time (in HTML templates).
     // Storing HTML-encoded text causes double-encoding when displayed.
@@ -78,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         csrf_json_exit(['success' => false, 'message' => 'Database prepare failed: ' . $conn->error]);
     }
 
-    $stmt->bind_param('issdsss', $user_id, $type, $category, $amount, $description, $created_at, $created_at);
+    $stmt->bind_param('issdsss', $user_id, $type, $category, $amount, $description, $created_at, $full_created_at);
 
     if ($stmt->execute()) {
         csrf_json_exit([

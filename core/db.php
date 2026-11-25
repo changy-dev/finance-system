@@ -24,6 +24,8 @@ if ($conn->connect_error) {
 }
 
 $conn->set_charset('utf8mb4');
+date_default_timezone_set($_ENV['APP_TIMEZONE'] ?? 'Africa/Nairobi');
+$conn->query("SET time_zone = '+03:00'");
 
 if (!$conn->query("
     CREATE TABLE IF NOT EXISTS `login_attempts` (

@@ -41,18 +41,46 @@ if ($bRes && $bRes->num_rows > 0) {
 }
 
 /* ── FETCH ACTUAL SPENDING THIS MONTH ── */
+$categoryMap = [
+    'Groceries'                => 'Food',
+    'Household Supplies'       => 'Food',
+    'Eating Out'               => 'Food',
+    'Food'                     => 'Food',
+    'Fuel & Charging'          => 'Transport',
+    'Vehicle Maintenance'      => 'Transport',
+    'Commuting'                => 'Transport',
+    'Transport'                => 'Transport',
+    'Utilities'                => 'Utilities',
+    'Home Decor'               => 'Utilities',
+    'Maintenance & DIY'        => 'Utilities',
+    'Kitchenware'              => 'Utilities',
+    'Health & Pharmacy'        => 'Health',
+    'Personal Grooming'        => 'Health',
+    'Health'                   => 'Health',
+    'Clothing & Accessories'   => 'Shopping',
+    'Electronics & Tech'       => 'Shopping',
+    'Shopping'                 => 'Shopping',
+    'Entertainment'            => 'Entertainment',
+    'Gifts & Celebrations'     => 'Other',
+    'Pet Supplies'             => 'Other',
+    'Impulse Buys'             => 'Other',
+    'Other'                    => 'Other',
+];
+
 $spent = [];
 $sRes = $conn->query("
     SELECT category, SUM(amount) total
     FROM transactions
     WHERE user_id = $user_id
       AND type = 'expense'
+      AND is_deleted_by_user = 0
       AND created_at BETWEEN '$monthStart 00:00:00' AND '$monthEnd 23:59:59'
     GROUP BY category
 ");
 if ($sRes && $sRes->num_rows > 0) {
     while ($row = $sRes->fetch_assoc()) {
-        $spent[$row['category']] = (float) $row['total'];
+        $parentCat = $categoryMap[$row['category']] ?? (in_array($row['category'], $expenseCategories) ? $row['category'] : 'Other');
+        $spent[$parentCat] = ($spent[$parentCat] ?? 0) + (float) $row['total'];
     }
 }
 
@@ -324,7 +352,7 @@ body > * { position: relative; z-index: 1; }
 .page-sub { font-size: 12.5px; color: var(--text-2); margin-top: 4px; }
 
 /* ── SUMMARY CARDS ── */
-.summary-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+.summary-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; }
 .stat {
     background: var(--surface);
     border: 1px solid var(--line);
@@ -677,7 +705,6 @@ body > * { position: relative; z-index: 1; }
             <a href="../pages/dashboard.php" class="nav-item" title="Dashboard">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10-3a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1v-7z"/></svg>
                 <span class="nav-label-text">Dashboard</span>
-                <span class="nav-badge">Live</span>
             </a>
 
             <div class="nav-section-label" style="margin-top:16px;">Money</div>
@@ -695,10 +722,7 @@ body > * { position: relative; z-index: 1; }
             </a>
 
             <div class="nav-section-label" style="margin-top:16px;">Account</div>
-            <a href="/finance_system/pages/settings.php" class="nav-item" title="Settings">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                <span class="nav-label-text">Settings</span>
-            </a>
+
                 <a href="../auth/logout.php" class="nav-item" title="Logout">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                 <span class="nav-label">Logout</span>
@@ -797,23 +821,6 @@ body > * { position: relative; z-index: 1; }
                         </span>
                     </div>
                 </div>
-
-                <div class="stat anim anim-d4">
-                    <div class="stat-top">
-                        <div class="stat-lbl">Categories</div>
-                        <div class="stat-ico ico-amber">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
-                        </div>
-                    </div>
-                    <div class="stat-val"><?php echo $onTrackCount; ?> / <?php echo count($expenseCategories); ?></div>
-                    <div class="stat-meta">
-                        <?php if ($overBudgetCount > 0): ?>
-                            <span class="pill pill-red"><?php echo $overBudgetCount; ?> over limit</span>
-                        <?php else: ?>
-                            <span class="pill pill-green">All on track</span>
-                        <?php endif; ?>
-                    </div>
-                </div>
             </div>
 
             <!-- MAIN GRID -->
@@ -826,10 +833,6 @@ body > * { position: relative; z-index: 1; }
                             <div class="card-title">Monthly Limits</div>
                             <div class="card-sub">Set a spending cap for each category</div>
                         </div>
-                        <button class="btn btn-ghost btn-sm" onclick="resetAll()">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                            Reset
-                        </button>
                     </div>
 
                     <div class="budget-list">
@@ -969,104 +972,9 @@ body > * { position: relative; z-index: 1; }
 
                 </div>
             </div>
-
-            <!-- ══ PERIOD LIMITS — Full-width section below the grid ══ -->
-            <div class="card anim" style="margin-top:20px;border:1px solid rgba(0,212,255,.2);box-shadow:0 0 0 4px rgba(0,212,255,.04);">
-                <div class="card-hd" style="padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:4px;">
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        <div style="width:36px;height:36px;background:var(--cyan-dim);color:var(--cyan);border:1px solid rgba(0,212,255,.2);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                        </div>
-                        <div>
-                            <div class="card-title" style="font-size:15px;">Spending Period Limits</div>
-                            <div class="card-sub">Cap how much you spend daily, monthly or yearly per category — saved with your budgets</div>
-                        </div>
-                    </div>
-                    <div style="display:flex;gap:6px;align-items:center;">
-                        <button class="period-tab active" data-period="daily"   onclick="switchPeriodTab('daily')">Daily</button>
-                        <button class="period-tab"        data-period="monthly" onclick="switchPeriodTab('monthly')">Monthly</button>
-                        <button class="period-tab"        data-period="yearly"  onclick="switchPeriodTab('yearly')">Yearly</button>
-                    </div>
-                </div>
-                <div id="period-inputs" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;padding-top:10px;">
-                <?php foreach ($expenseCategories as $cat):
-                    $bg     = $bgColors[$cat] ?? '#f8fafc';
-                    $color  = $colors[$cat]   ?? '#6366f1';
-                ?>
-                    <div class="period-row" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px;">
-                        <div style="width:32px;height:32px;background:<?php echo $bg; ?>;color:<?php echo $color; ?>;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;"><?php echo strtoupper(substr($cat, 0, 1)); ?></div>
-                        <span class="period-cat-lbl" style="font-size:13px;font-weight:500;min-width:90px;color:var(--text-1);"><?php echo $cat; ?></span>
-                        <div class="period-input-group" style="flex:1;">
-                            <span class="currency" style="font-size:11px;color:var(--ink-3);">KES</span>
-                            <input type="number" class="budget-input period-limit-input"
-                                id="daily-<?php echo $cat; ?>"
-                                data-period="daily"
-                                data-category="<?php echo $cat; ?>"
-                                value="<?php echo isset($dailyLimits[$cat]) ? (int)$dailyLimits[$cat] : ''; ?>"
-                                placeholder="No limit"
-                                min="0" step="50"
-                                style="font-size:13px;padding:6px 8px;width:100%;">
-                            <input type="number" class="budget-input period-limit-input"
-                                id="monthly-<?php echo $cat; ?>"
-                                data-period="monthly"
-                                data-category="<?php echo $cat; ?>"
-                                value="<?php echo isset($monthlyLimits[$cat]) ? (int)$monthlyLimits[$cat] : ''; ?>"
-                                placeholder="No limit"
-                                min="0" step="100"
-                                style="font-size:13px;padding:6px 8px;width:100%;display:none;">
-                            <input type="number" class="budget-input period-limit-input"
-                                id="yearly-<?php echo $cat; ?>"
-                                data-period="yearly"
-                                data-category="<?php echo $cat; ?>"
-                                value="<?php echo isset($yearlyLimits[$cat]) ? (int)$yearlyLimits[$cat] : ''; ?>"
-                                placeholder="No limit"
-                                min="0" step="500"
-                                style="font-size:13px;padding:6px 8px;width:100%;display:none;">
-                        </div>
-                    </div>
-                <?php endforeach; ?>
-                </div>
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.06);">
-                    <p style="font-size:12px;color:var(--text-3);margin:0;">Period limits are saved together with your budgets when you click <strong style="color:var(--text-2);">Save Budgets</strong>.</p>
-                    <button class="btn btn-primary" onclick="saveAll()" style="flex-shrink:0;">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                        Save Budgets
-                    </button>
-                </div>
-            </div>
-
-            <!-- ══ BUDGET TIPS — below period limits ══ -->
-            <div class="card anim" style="margin-top:16px;">
-                <div class="card-hd">
-                    <div class="card-title">Budget Tips</div>
-                </div>
-                <div class="tips">
-                    <div class="tip-item">
-                        <div class="tip-icon">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10L12 12z"/></svg>
-                        </div>
-                        <div class="tip-text"><strong>50/30/20 Rule</strong> — Put 50% of income to needs, 30% to wants, and 20% to savings.</div>
-                    </div>
-                    <div class="tip-item">
-                        <div class="tip-icon">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                        </div>
-                        <div class="tip-text"><strong>80% Warning</strong> — Categories shown in amber have used over 80% of their limit.</div>
-                    </div>
-                    <div class="tip-item">
-                        <div class="tip-icon">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
-                        </div>
-                        <div class="tip-text"><strong>Monthly Reset</strong> — Budgets reset each month but your limits carry forward automatically.</div>
-                    </div>
-                </div>
-            </div>
-
+        </div><!-- /content -->
     </div><!-- /main -->
 </div><!-- /layout -->
-
-<!-- ══ OVER-BUDGET NOTIFICATION BANNER ══ -->
-<div id="overBudgetBanner" style="display:none;position:fixed;top:16px;right:16px;z-index:9999;max-width:400px;display:none;flex-direction:column;gap:8px;"></div>
 
 
 <script>
@@ -1128,14 +1036,7 @@ function updateSummary() {
         'KES ' + total.toLocaleString('en-KE', {maximumFractionDigits: 0});
 }
 
-/* ── RESET ALL ── */
-function resetAll() {
-    if (!confirm('Clear all budget limits?')) return;
-    categories.forEach(cat => {
-        const input = document.getElementById('input-' + cat);
-        if (input) { input.value = ''; updateRow(cat); }
-    });
-}
+
 
 /* ── SAVE ALL ── */
 const MAX_BUDGET_AMOUNT = 100000000; // KES 100M sanity ceiling
@@ -1143,7 +1044,7 @@ const MAX_BUDGET_AMOUNT = 100000000; // KES 100M sanity ceiling
 function validateBudgetInputs() {
     const invalid = [];
     categories.forEach(cat => {
-        ['input-', 'daily-', 'monthly-', 'yearly-'].forEach(prefix => {
+        ['input-'].forEach(prefix => {
             const el = document.getElementById(prefix + cat);
             if (!el || el.value === '') return;
             const v = parseFloat(el.value);
@@ -1201,7 +1102,7 @@ function saveAll() {
             if (d.success) {
                 showToast('Budgets saved successfully!', 'success');
                 // Re-check alerts after saving new limits
-                setTimeout(checkPeriodAlerts, 600);
+                // Period alerts removed
             } else {
                 showToast(d.message || 'Save failed', 'error');
             }
@@ -1311,60 +1212,9 @@ function toggleSidebar() {
 })();
 <?php endif; ?>
 
-/* ── PERIOD TAB SWITCHER ── */
-let activePeriod = 'daily';
-function switchPeriodTab(period) {
-    activePeriod = period;
-    document.querySelectorAll('.period-tab').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.period === period);
-    });
-    categories.forEach(cat => {
-        ['daily','monthly','yearly'].forEach(p => {
-            const el = document.getElementById(p + '-' + cat);
-            if (el) el.style.display = (p === period) ? 'block' : 'none';
-        });
-    });
-}
 
-/* ── OVER-BUDGET PERIOD ALERTS ── */
-const shownAlerts = new Set();
 
-function checkPeriodAlerts() {
-    fetch('../core/check_budget_period_alerts.php')
-        .then(r => r.json())
-        .then(data => {
-            if (!data.alerts || data.alerts.length === 0) return;
-            const banner = document.getElementById('overBudgetBanner');
-            banner.style.display = 'flex';
 
-            data.alerts.forEach(a => {
-                const key = a.category + ':' + a.period_type;
-                if (shownAlerts.has(key)) return;
-                shownAlerts.add(key);
-
-                const fmt = n => 'KES ' + Math.round(n).toLocaleString('en-KE');
-                const card = document.createElement('div');
-                card.className = 'ob-alert';
-                card.innerHTML = `
-                    <button class="ob-alert-close" onclick="this.closest('.ob-alert').remove()">✕</button>
-                    <div class="ob-alert-title">⚠ Over ${a.period_label} budget — ${a.category}</div>
-                    <div class="ob-alert-body">
-                        You spent <strong>${fmt(a.spent)}</strong> against a ${a.period_type} limit of
-                        <strong>${fmt(a.limit)}</strong>.<br>
-                        That's <strong>${fmt(a.over_by)} (${a.pct}%)</strong> over your limit.
-                    </div>`;
-                banner.appendChild(card);
-
-                // Auto-dismiss after 12 s
-                setTimeout(() => card.remove(), 12000);
-            });
-        })
-        .catch(() => {}); // silent fail — non-critical
-}
-
-// Check on page load and every 5 minutes
-checkPeriodAlerts();
-setInterval(checkPeriodAlerts, 300000);
 </script>
 </body>
 </html>
